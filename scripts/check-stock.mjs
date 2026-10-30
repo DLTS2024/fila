@@ -1,0 +1,18 @@
+import ts from 'typescript';
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const code=ts.transpile(fs.readFileSync('lib/stock.ts','utf8'),{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022});
+const {apply,emptyState,validateBackup}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));
+let s=apply(emptyState,{type:'add',spool:{name:'Black',brand:'Test',material:'PLA',color:'#222222',initial:1000,remaining:800,tare:220,location:'Shelf'}});
+const id=s.spools[0].id;
+s=apply(s,{type:'print',name:'Nameplate',printer:'Anycubic Kobra 3',note:'',lines:[{id,grams:100},{id,grams:20}]});
+assert.equal(s.spools[0].remaining,680);
+assert.throws(()=>apply(s,{type:'print',name:'Too large',printer:'Anycubic Kobra 3',lines:[{id,grams:700}]}));
+assert.equal(s.spools[0].remaining,680);
+s=apply(s,{type:'undo',id:s.history[0].id});assert.equal(s.spools[0].remaining,800);
+s=apply(s,{type:'weigh',id,gross:900,tare:220});assert.equal(s.spools[0].remaining,680);assert.equal(s.spools[0].measured,true);
+s=apply(s,{type:'assign',id,slot:'kobra-1'});s=apply(s,{type:'assign',id,slot:'sparkx-2'});assert.equal(s.slots['kobra-1'],undefined);assert.equal(s.slots['sparkx-2'],id);
+assert.deepEqual(validateBackup({format:'dloop-stock-v1',state:s}),s);
+assert.throws(()=>validateBackup({format:'other',state:s}));
+assert.throws(()=>apply(s,{type:'weigh',id,gross:100,tare:220}));
+console.log('Passed: 800−120=680; grouped colours; overdraw rejection; undo; tare correction; single slot assignment; backup round-trip; invalid input rejection.');

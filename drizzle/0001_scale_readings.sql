@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS scale_readings (device_id TEXT PRIMARY KEY NOT NULL, gross_g REAL NOT NULL, stable INTEGER NOT NULL, recorded_at TEXT NOT NULL);
