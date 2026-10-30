@@ -61,3 +61,12 @@ yarn-error.log*
 /legacy/package-lock.json
 /legacy/pnpm-lock.yaml
 
+
+# Additional private configuration
+*.key
+*.p12
+*.pfx
+config.local.php
+credentials*.json
+/test-results/
+
