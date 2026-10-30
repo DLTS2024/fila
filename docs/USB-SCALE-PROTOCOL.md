@@ -3,7 +3,7 @@
 The browser implementation reads an ESP8266-compatible serial stream; it does not
 flash, calibrate, tare or send commands to the board. The existing ESP8266 Wi-Fi
 sketch is unchanged and DOES NOT emit this protocol. Its diagnostic text will be
-rejected. A compatible firmware implementation is separate future work.
+rejected. Phase 5B now supplies a separate USB-only sketch at firmware/dloop_usb_scale; see PHASE-5B-FIRMWARE.md. It has compiled but has not been flashed or physically calibrated. The browser remains read-only; explicit Serial Monitor calibration commands are documented separately.
 
 ## Frames
 
@@ -113,8 +113,7 @@ Use a top-level localhost page in supported desktop Chrome/Edge during developme
 or HTTPS on filament.dlts.in later. The UI checks isSecureContext and navigator.serial
 and requests a port only from the Connect USB click. It does not auto-reconnect or
 enumerate devices in the background. Close Arduino Serial Monitor/other port users.
-Some boards can reset when opening a port; keep the platform clear when checking
-the existing firmware's boot-tare behavior. No physical board was opened in tests.
+Some boards can reset when opening a port. The Phase 5B USB sketch restores an explicitly accepted offset/factor and never auto-zeros; verify empty platform and reference accuracy after reopening. The original Wi-Fi sketch has different boot-tare behavior. No physical board was opened in tests.
 
 On cPanel this remains static browser JavaScript plus the existing PHP REST API.
 No Node production server, local bridge, Worker or continuously running service is

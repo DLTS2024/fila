@@ -1,0 +1,17 @@
+[
+  {"name":"verified stable, no NFC", "seq":0,"gross":984.6,"stable":true,"calibrated":true,"fault":null,"kind":"reading","eligible":true},
+  {"name":"motion", "seq":1,"gross":985.3,"stable":false,"calibrated":true,"fault":null,"kind":"reading","eligible":false},
+  {"name":"candidate not accepted", "seq":2,"gross":500,"stable":true,"calibrated":false,"fault":null,"kind":"reading","eligible":false},
+  {"name":"empty verified platform", "seq":3,"gross":0,"stable":true,"calibrated":true,"fault":null,"kind":"reading","eligible":true},
+  {"name":"first boot", "seq":4,"gross":null,"stable":false,"calibrated":false,"fault":"CALIBRATION_REQUIRED","kind":"fault"},
+  {"name":"waiting", "seq":5,"gross":null,"stable":false,"calibrated":true,"fault":"HX711_NOT_READY","kind":"fault"},
+  {"name":"sensor stopped", "seq":6,"gross":null,"stable":false,"calibrated":true,"fault":"HX711_TIMEOUT","kind":"fault"},
+  {"name":"negative or saturated", "seq":7,"gross":null,"stable":false,"calibrated":true,"fault":"OUT_OF_RANGE","kind":"fault"},
+  {"name":"unstable zero refused", "seq":8,"gross":null,"stable":false,"calibrated":false,"fault":"ZERO_UNSTABLE","kind":"fault"},
+  {"name":"calibration failed", "seq":9,"gross":null,"stable":false,"calibrated":false,"fault":"CALIBRATION_UNSTABLE","kind":"fault"},
+  {"name":"reference failed", "seq":10,"gross":null,"stable":false,"calibrated":false,"fault":"VERIFICATION_FAILED","kind":"fault"},
+  {"name":"flash failed", "seq":11,"gross":null,"stable":false,"calibrated":false,"fault":"STORAGE_ERROR","kind":"fault"},
+  {"name":"unsupported monitor command", "seq":12,"gross":null,"stable":false,"calibrated":true,"fault":"COMMAND_REJECTED","kind":"fault"},
+  {"name":"maximum configured gross", "seq":13,"gross":5000,"stable":true,"calibrated":true,"fault":null,"kind":"reading","eligible":true},
+  {"name":"last sequence", "seq":4294967295,"gross":12.34,"stable":true,"calibrated":true,"fault":null,"kind":"reading","eligible":true}
+]

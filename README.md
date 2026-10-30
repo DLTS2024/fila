@@ -72,3 +72,5 @@ or fake successful saves are used. Read the Phase 4 report before deployment.
 
 
 Phase 5A adds browser USB scale input, manual spool selection, explicit measurement review and a browser simulator. Physical hardware has not been tested: the existing Wi-Fi firmware is unchanged and does not emit the new USB protocol. See [local setup](docs/PHASE-5A-LOCAL.md), [verification report](docs/PHASE-5A-REPORT.md), and [serial protocol](docs/USB-SCALE-PROTOCOL.md).
+
+Phase 5B adds a separate USB-only NodeMCU sketch without overwriting the Wi-Fi firmware. See [firmware setup, calibration and physical acceptance](docs/PHASE-5B-FIRMWARE.md) and [executed verification](docs/PHASE-5B-REPORT.md). No board has been flashed or physically tested.

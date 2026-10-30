@@ -23,7 +23,8 @@
     "test:scale": "node scripts/check-scale.mjs",
     "test:scale:ui": "node scripts/check-scale-ui.mjs",
     "test:scale:api": "node backend/tests/scale-http.mjs",
-    "test:scale:live": "node scripts/check-scale-live-ui.mjs"
+    "test:scale:live": "node scripts/check-scale-live-ui.mjs",
+    "test:firmware": "node scripts/check-firmware-protocol.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

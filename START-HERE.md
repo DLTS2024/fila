@@ -14,3 +14,5 @@ for verification, limitations and rollback. No production deployment is performe
 
 
 For Phase 5A USB scale/simulator setup and isolated test inventory, read docs/PHASE-5A-LOCAL.md and docs/PHASE-5A-REPORT.md. USB needs supported desktop Chromium on localhost or HTTPS. The existing Wi-Fi firmware remains unchanged; physical compatibility is not verified. Manual inventory entry remains.
+
+Phase 5B adds a separate USB-only NodeMCU sketch without overwriting the Wi-Fi firmware. See [firmware setup, calibration and physical acceptance](docs/PHASE-5B-FIRMWARE.md) and [executed verification](docs/PHASE-5B-REPORT.md). No board has been flashed or physically tested.
