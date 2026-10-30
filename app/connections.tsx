@@ -1,25 +1,107 @@
-import {useRef,useState,useEffect} from 'react';
-import {studioApi} from '@/lib/api';
+import {useEffect,useRef,useState} from 'react';
 import {Scale,Radio,Link,Usb,Check,Unplug} from 'lucide-react';
-import {normalizeUID} from '@/lib/stock';
 import type {InventoryState} from '@/lib/inventory';
-type Reading={uid:string;gross:number;stable:boolean;at:string};
-type WifiResponse={reading?:{gross_g:number;stable:number;recorded_at:string}|null;error?:string};
-export default function Connections({state,saving,act}:{state:InventoryState;saving:boolean;act:(a:any)=>Promise<boolean|undefined>}){
- const [wifiReading,setWifiReading]=useState<{gross_g:number;stable:number;recorded_at:string}|null>(null);
- const [wifiError,setWifiError]=useState('');
- useEffect(()=>{let live=true;const poll=async()=>{try{const j=await studioApi.getScaleReading() as WifiResponse;if(live){setWifiReading(j.reading??null);setWifiError('')}}catch(e){if(live)setWifiError((e as Error).message)}};void poll();const timer=setInterval(poll,4000);return()=>{live=false;clearInterval(timer)}},[]);
- const [roll,setRoll]=useState(''),[uid,setUID]=useState(''),[message,setMessage]=useState(''),[raw,setRaw]=useState(''),[reading,setReading]=useState<Reading|null>(null),[connected,setConnected]=useState(false),[busy,setBusy]=useState(false);
- const port=useRef<any>(null),reader=useRef<any>(null),active=useRef(false);
- const stop=async()=>{active.current=false;try{await reader.current?.cancel()}catch{}setConnected(false)};
- useEffect(()=>()=>{active.current=false;void reader.current?.cancel().catch(()=>{})},[]);
- const receive=(line:string)=>{try{const v=JSON.parse(line);const tag=normalizeUID(v.uid);if(!tag||typeof v.gross!=='number'||!Number.isFinite(v.gross)||v.gross<0||v.gross>100000||typeof v.stable!=='boolean')throw Error('Expected uid, gross (grams) and stable (true/false).');setReading({uid:tag,gross:v.gross,stable:v.stable,at:new Date().toISOString()});setUID(tag);setMessage('Reading received. Check the roll and net weight before saving.');}catch(e){setMessage('Invalid reading: '+(e as Error).message)}};
- const connect=async()=>{if(!(navigator as any).serial){setMessage('Web Serial is unavailable. Open this app in desktop Chrome or Edge, or paste a reading below.');return}setBusy(true);setMessage('');try{const p=await(navigator as any).serial.requestPort();port.current=p;await p.open({baudRate:115200});active.current=true;setConnected(true);setBusy(false);const r=p.readable.getReader();reader.current=r;const decoder=new TextDecoder();let buffer='';try{while(active.current){const {value,done}=await r.read();if(done)break;buffer+=decoder.decode(value,{stream:true});if(buffer.length>4096){buffer='';setMessage('Serial line too long; waiting for a new reading.')}let end;while((end=buffer.indexOf('\n'))>=0){const line=buffer.slice(0,end).trim();buffer=buffer.slice(end+1);if(line.startsWith('{'))receive(line)}}}finally{r.releaseLock();reader.current=null;await p.close();port.current=null;active.current=false;setConnected(false)}}catch(e){setMessage((e as Error).message);setConnected(false)}finally{setBusy(false)}};
- const match=reading?state.spools.find(p=>p.nfc===reading.uid):undefined;
- const fresh=reading&&Date.now()-Date.parse(reading.at)<120000;
- const net=match&&reading&&match.tareKnown!==false?Math.round((reading.gross-match.tare)*100)/100:-1;
- return <div className="connectionGrid"><div className="notice wide" role="status">Hardware integration is preserved from V1. ESP8266 USB JSON support is pending; the included ESP8266 firmware still uses Wi-Fi. Manual inventory saves use the authenticated PHP API. Wi-Fi device ingestion and ESP8266 USB integration remain deferred.</div><section className="panel help"><Scale/><h2>Wi-Fi Smart Scale · ESP8266</h2><p>Latest reading from the website backend (not a direct browser connection). Stock is changed only after you confirm the physical roll.</p><p>{wifiError?`Backend: ${wifiError}`:wifiReading?`Gross: ${wifiReading.gross_g.toFixed(1)} g · ${wifiReading.stable?'Stable':'Unstable'} · ${new Date(wifiReading.recorded_at).toLocaleString()}`:'Waiting for Wi-Fi scale reading...'}</p><label>Roll to reconcile<select value={roll} onChange={e=>setRoll(e.target.value)}><option value="">Choose a roll</option>{state.spools.map(p=><option key={p.id} value={p.id}>{p.name} · {p.brand}</option>)}</select></label><p>Empty spool tare: {state.spools.find(p=>p.id===roll)?.tare??'—'} g (edit the roll if its actual tare differs).</p><button className="primary" disabled={saving||!roll||!wifiReading||!wifiReading.stable||Date.now()-Date.parse(wifiReading.recorded_at)>30000||wifiReading.gross_g<(state.spools.find(p=>p.id===roll)?.tare??Infinity)} onClick={async()=>{if(!wifiReading||!confirm('Confirm this physical roll is on the scale and update its stock?'))return;const p=state.spools.find(p=>p.id===roll);if(p&&await act({type:'weigh',id:p.id,gross:wifiReading.gross_g,tare:p.tare}))setMessage('Wi-Fi reading saved to inventory.')}}>Confirm stable Wi-Fi weight → Save stock</button></section><section className="panel help"><Radio/><h2>1. Link an NFC tag</h2><p>Each physical roll gets one unique tag. A tag identifies the roll; it does not measure weight.</p><label>Physical roll<select value={roll} onChange={e=>setRoll(e.target.value)}><option value="">Choose a roll</option>{state.spools.map(p=><option key={p.id} value={p.id}>{p.name} · {p.id.slice(0,8)}</option>)}</select></label><label>NFC UID<input placeholder="e.g. 04:A1:B2:C3:D4:E5:F6" value={uid} onChange={e=>setUID(e.target.value)}/></label><p className="hint">Read the UID with your NFC reader. USB readings also fill this field. Blank UID unlinks the selected roll.</p><button className="primary" disabled={!roll||saving} onClick={async()=>{if(await act({type:'link',id:roll,uid}))setMessage(uid?'Tag linked to the selected roll.':'Tag unlinked.')}}><Link size={16}/> Save tag link</button><div className="tagRecords">{state.spools.map(p=><div key={p.id}><strong>{p.name}<small>Roll {p.id.slice(0,8)}</small></strong><code>{p.nfc||'No tag linked'}</code></div>)}</div></section>
- <section className="panel help"><Scale/><h2>2. Receive & confirm weight</h2><span className="tag">{connected?'USB serial open':'Scale not connected'}</span><p>Connect an ESP32 by USB. Its firmware must send the JSON format below at 115200 baud. Keep this tab open while receiving readings.</p><button className="primary" disabled={busy} onClick={()=>connected?stop():connect()}>{connected?<Unplug size={16}/>:<Usb size={16}/>} {busy?'Connecting…':connected?'Disconnect USB':'Connect USB scale'}</button><div className="readingBox"><small>LATEST RECEIVED READING</small><h3>{reading?`${reading.gross} g`:'— g'}</h3><p>{reading?`${reading.stable?'Stable':'Unstable'} · ${new Date(reading.at).toLocaleTimeString()}`:'Waiting for an NFC + weight reading'}</p>{reading&&<><code>{reading.uid}</code><p>{match?<><b>{match.name}</b><br/>Roll {match.id.slice(0,8)} · Tare {match.tare} g<br/><strong>Net filament: {net} g</strong></>:'Unknown tag. Link it to a roll first.'}</p></>}</div><p className="hint">Confirm only after the scale settles and the platform is clear of external contact. Verify the saved tare first. A zero tare includes the spool in the result.</p><button className="primary" disabled={saving||!reading?.stable||!match||net<0} onClick={async()=>{if(!reading||!match)return;if(!fresh){setMessage('Reading expired. Receive a new measurement before saving.');return}if(await act({type:'weigh',id:match.id,gross:reading.gross,tare:match.tare})){setReading(null);setMessage('Measured balance saved with history.')}}}><Check size={16}/> Confirm & save measured balance</button></section>
- <section className="panel help wide"><h2>Connection format & setup</h2><p><b>Supported now:</b> NFC UID linking, USB serial reception, roll matching, confirmed weight correction and history when the backend is connected. Pasted readings are for manual import / software testing.</p><p><a className="textButton" href="/scale/dloop_scale.ino" download>Download prototype ESP32 firmware</a> · <a className="textButton" href="/scale/setup.md" download>Download wiring & calibration guide</a></p><p className="hint">Prototype firmware is included for your assembler. It has not been compiled or tested on hardware.</p><p><b>Hardware needed:</b> ESP32 + HX711/load cell + PN532 reader, calibrated with a known reference weight. NFC tags need unique UIDs. This app does not flash or calibrate the scale.</p><p><b>Still requires device work:</b> compatible ESP32 firmware and testing on your assembled scale. Original FilaMan firmware does not automatically speak this USB format. Direct Wi-Fi sync needs a separate authenticated gateway; the private app URL alone will not work.</p><p>One JSON object per line, gross weight in grams:</p><pre>{'{"uid":"04A1B2C3D4E5F6","gross":900,"stable":true}\n'}</pre><label>Paste a measurement<textarea rows={3} value={raw} onChange={e=>setRaw(e.target.value)} placeholder="Paste the scale's JSON reading"/></label><button className="secondary" disabled={!raw.trim()} onClick={()=>receive(raw.trim())}>Load reading for review</button><p className="hint">No stock changes until you confirm. Printer stock deduction remains manual; USB measurements correct the balance only when the roll is on the scale.</p></section>{message&&<div className="notice wide" role="status">{message}</div>}</div>
-}
+import {useSerialScale} from '@/hooks/use-serial-scale';
+import {browserSerialSupport,type SerialScaleConnection} from '@/lib/scale/serial';
+import {SimulatedScalePort,type SimulatorSample} from '@/lib/scale/simulator';
+import {eligibleReading,freshReading,frameIdentity,scaleConfirmationKey,SCALE_REVIEW_TOLERANCE_G,type ScaleReading} from '@/lib/scale/protocol';
 
+type Review={spoolId:string;version:number;revision:number;gross:string;tare:string;before:number;net:number;key:string;reading?:ScaleReading};
+type Props={state:InventoryState;revision?:number;saving:boolean;error?:string;act:(a:any)=>Promise<boolean|undefined>;controller?:SerialScaleConnection};
+
+export default function Connections({state,revision=0,saving,error='',act,controller}:Props){
+  const {connection,state:scale,now}=useSerialScale(controller);
+  const support=browserSerialSupport();
+  const [simulator]=useState(()=>new SimulatedScalePort());
+  const [showSimulator,setShowSimulator]=useState(false);
+  const [sample,setSample]=useState<SimulatorSample>({grossG:984.6,stable:true,calibrated:true,fault:false,paused:false});
+  const [raw,setRaw]=useState('');
+  const [roll,setRoll]=useState(''),[uid,setUID]=useState(''),[manual,setManual]=useState(''),[message,setMessage]=useState('');
+  const [review,setReview]=useState<Review|null>(null),[ack,setAck]=useState(false),[attempted,setAttempted]=useState(false),[sending,setSending]=useState(false);
+  const inFlight=useRef(false),consumed=useRef(new Set<string>());
+  const active=state.spools.filter(p=>p.status!=='archived');
+  const selected=active.find(p=>p.id===roll),current=active.find(p=>p.id===review?.spoolId);
+  const reading=scale.reading;
+  const connected=scale.connection==='connected';
+  const connecting=['selecting','opening','disconnecting'].includes(scale.connection);
+  const tareKnown=!!selected&&selected.tareKnown!==false&&Number.isFinite(selected.tare)&&selected.tare>=0;
+  const fresh=freshReading(reading,now);
+  const ready=connected&&scale.sensor==='ready'&&eligibleReading(reading,now);
+  const selectable=!!selected&&tareKnown&&Number.isInteger(selected.version)&&Number(selected.version)>0;
+  const available=ready&&reading&&!consumed.current.has(frameIdentity(reading));
+  const reviewRecordValid=!!review&&!!current&&current.version===review.version&&revision===review.revision;
+  const sameConnection=!!review?.reading&&!!reading&&review.reading.connectionId===reading.connectionId;
+  const liveStillMatches=ready&&sameConnection&&!!review?.reading&&!!reading&&Math.abs(reading.grossG-review.reading.grossG)<=SCALE_REVIEW_TOLERANCE_G;
+  const sampleConsumed=!!review?.reading&&consumed.current.has(frameIdentity(review.reading));
+  // An ambiguous retry may acknowledge an old committed sample. PHP rejects it
+  // if no matching idempotency record exists and its receipt time has expired.
+  const reviewScaleValid=!review?.reading||(!sampleConsumed&&liveStillMatches&&(attempted||eligibleReading(review.reading,now)));
+  const canSave=!!review&&ack&&reviewRecordValid&&reviewScaleValid&&!saving&&!sending;
+
+  useEffect(()=>{simulator.setSample(sample)},[simulator,sample]);
+  useEffect(()=>{if(reading?.uid)setUID(reading.uid)},[reading?.uid]);
+
+  const clearReview=()=>{setReview(null);setAck(false);setAttempted(false)};
+  const preview=(usb:boolean)=>{
+    setMessage('');
+    if(!selectable||!selected){setMessage('Select an active spool with a saved tare and current version.');return;}
+    if(usb&&(!available||!reading)){setMessage('Receive a fresh, stable, calibrated scale reading before review.');return;}
+    if(!usb&&(!manual.trim()||!/^\d+(?:\.\d{1,2})?$/.test(manual))){setMessage('Enter a manual gross mass with at most two decimal places.');return;}
+    const gross=usb?reading!.grossG:Number(manual);
+    const cents=Math.round(gross*100),tareCents=Math.round(selected.tare*100);
+    if(!Number.isFinite(gross)||gross<0||gross>100000||cents<tareCents){setMessage('Gross must be finite, at least the empty spool tare and no more than 100,000 g.');return;}
+    setReview({spoolId:selected.id,version:selected.version!,revision,gross:(cents/100).toFixed(2),tare:(tareCents/100).toFixed(2),before:selected.remaining,net:(cents-tareCents)/100,key:usb?scaleConfirmationKey(reading!):crypto.randomUUID(),...(usb?{reading:{...reading!}}:{})});
+    setAck(false);setAttempted(false);
+  };
+  const confirm=async()=>{
+    if(inFlight.current||!canSave||!review)return;
+    // Recheck receipt age at click time, not only on the 250 ms display timer.
+    const live=connection.getState();
+    if(review.reading&&(live.connection!=='connected'||live.sensor!=='ready'||!eligibleReading(live.reading,Date.now())||live.reading.connectionId!==review.reading.connectionId||Math.abs(live.reading.grossG-review.reading.grossG)>SCALE_REVIEW_TOLERANCE_G||(!attempted&&!eligibleReading(review.reading,Date.now())))){setMessage('Reading expired or the live sensor changed. Review a fresh sample.');return;}
+    inFlight.current=true;setSending(true);setAttempted(true);setMessage('');
+    try{
+      const r=review.reading;
+      const readingContext=r?{v:1,deviceId:r.deviceId,seq:r.seq,grossG:r.grossG,stable:r.stable,calibrated:r.calibrated,receivedAt:new Date(r.receivedAt).toISOString(),connectionId:r.connectionId,transport:r.transport}:undefined;
+      const saved=await act({type:'scale-measurement',id:review.spoolId,version:review.version,revision:review.revision,gross:review.gross,tare:review.tare,confirmationKey:review.key,...(readingContext?{reading:readingContext}:{})});
+      if(saved){if(r)consumed.current.add(frameIdentity(r));clearReview();setMessage(r?.transport==='simulator'?'Simulator measurement saved with explicit test provenance.':'Confirmed measured balance saved with history.');}
+    }finally{inFlight.current=false;setSending(false);}
+  };
+  const status=scale.sensor==='ready'?'Stable · calibrated':scale.sensor==='unstable'?'Unstable':scale.sensor==='uncalibrated'?'Not calibrated':scale.sensor==='stale'?'Stale reading':scale.sensor==='fault'?'Sensor fault':scale.sensor==='invalid'?'Invalid protocol data':'Waiting for sensor';
+  return <div className="connectionGrid">
+    <div className="notice wide">USB scale review needs no NFC hardware. The current ESP8266 firmware is still Wi-Fi based and does not emit this protocol. Firmware is unchanged; use the simulator until compatible firmware is supplied separately.</div>
+    <section className="panel help">
+      <Usb/><h2>USB smart scale</h2><p>{support.message}</p>
+      <span className="tag" role="status">{connected?(scale.transport==='simulator'?'Simulator connected':'USB serial open'):scale.connection}</span>
+      <div><button className="primary" disabled={!support.provider||connected||connecting} onClick={()=>{if(support.provider)void connection.connect(support.provider)}}><Usb size={16}/> Connect USB</button>
+      <button className="secondary" disabled={scale.connection==='disconnected'} onClick={()=>void connection.disconnect()}><Unplug size={16}/> Disconnect</button></div>
+      <p className="hint">Select your NodeMCU COM port. Read-only serial reception at 115200 baud. Close Arduino Serial Monitor first. No calibration, tare, Wi-Fi, flash or other commands are sent to the board.</p>
+      <div className="readingBox"><small>LIVE GROSS WEIGHT {scale.transport==='simulator'?'— SIMULATED':''}</small><h3>{reading?`${reading.grossG.toFixed(2)} g`:'— g'}</h3><p role="status">{status}{reading&&!fresh?' · expired':''}</p><p>Last reading: {scale.lastReadingAt===null?'None':new Date(scale.lastReadingAt).toLocaleTimeString()}</p>{reading&&<small>{reading.deviceId} · sequence {reading.seq}{reading.uid?' · optional NFC received':' · no NFC required'}</small>}</div>
+      {scale.message&&<p role="status">{scale.message}</p>}
+      <button className="textButton" aria-expanded={showSimulator} onClick={()=>setShowSimulator(v=>!v)}>Simulator (no hardware)</button>
+      {showSimulator&&<div className="inventoryForms simulatorControls"><h3>Protocol simulator</h3><p className="hint">Test data only. Confirming a simulator preview will update the selected inventory record and be recorded as simulated.</p><label>Simulator gross weight (g)<input type="number" min="0" max="100000" step="0.01" value={sample.grossG} onChange={e=>setSample({...sample,grossG:Number(e.target.value)})}/></label>
+      {(['stable','calibrated','fault','paused'] as const).map(key=><label className="checkLabel" key={key}><input type="checkbox" checked={sample[key]} onChange={e=>setSample({...sample,[key]:e.target.checked})}/>{key==='stable'?'Simulator stable':key==='calibrated'?'Simulator calibrated':key==='fault'?'Simulator sensor fault':'Pause simulator stream'}</label>)}
+      <button className="secondary" disabled={connected||connecting} onClick={()=>void connection.connectSimulator(simulator)}>Start scale simulator</button>
+      <label>Custom simulator frame<textarea maxLength={4096} rows={3} value={raw} onChange={e=>setRaw(e.target.value)} placeholder='{"v":1,"deviceId":"DLOOP-SCALE-01","seq":123,"grossG":984.6,"stable":true,"calibrated":true}'/></label>
+      <button className="secondary" disabled={!connected||scale.transport!=='simulator'||!raw.trim()} onClick={()=>simulator.inject(raw+'\n')}>Send simulator frame</button></div>}
+    </section>
+    <section className="panel help">
+      <Scale/><h2>Select, review & confirm</h2><label>Spool for measurement<select value={roll} disabled={sending} onChange={e=>{setRoll(e.target.value);clearReview()}}><option value="">Choose spool manually</option>{active.map(p=><option key={p.id} value={p.id}>{p.code||p.name} · {p.name} · {p.brand}</option>)}</select></label>
+      <p>Saved effective tare: {tareKnown?`${selected!.tare.toFixed(2)} g`:'unknown — edit the spool first'}</p>
+      <button className="primary" disabled={!selectable||!available||saving||sending} onClick={()=>preview(true)}>Review scale measurement</button>
+      <form onSubmit={e=>{e.preventDefault();preview(false)}}><label>Manual gross weight (g)<input type="number" required min="0" max="100000" step="0.01" value={manual} onChange={e=>setManual(e.target.value)}/></label><button className="secondary" disabled={!selectable||saving||sending}>Review manual measurement</button></form>
+      <p className="hint">Manual entry always remains available. Incoming serial frames never save inventory. To change tare, use Update existing filament separately.</p>
+      {review&&<div className="scaleReview"><h3>Frozen measurement preview</h3><p>{current?.name} · {review.reading?.transport==='simulator'?'SIMULATOR — NOT PHYSICAL':review.reading?'USB scale':'Manual entry'}</p><div className="previewBalance"><div><span>Gross weight</span><strong>{review.gross} g</strong></div><div><span>Effective tare</span><strong>{review.tare} g</strong></div><div><span>Previous remaining mass</span><strong>{review.before.toFixed(2)} g</strong></div><div><span>Proposed remaining mass</span><strong>{review.net.toFixed(2)} g</strong></div><div><span>Difference</span><strong>{(review.net-review.before).toFixed(2)} g</strong></div></div>
+      {!reviewRecordValid&&<p role="alert" className="error">Inventory changed. Reload and review this spool again.</p>}
+      {review.reading&&!reviewScaleValid&&<p role="alert" className="error">Scale preview is no longer safe: check freshness, stability, calibration and connection, then review a new reading.</p>}
+      <label className="checkLabel"><input type="checkbox" checked={ack} disabled={sending} onChange={e=>setAck(e.target.checked)}/>{review.reading?.transport==='simulator'?'I understand simulated data will update the selected inventory record':'I checked this spool, tare and proposed balance'}</label>
+      <button className="primary" disabled={!canSave} onClick={()=>void confirm()}><Check size={16}/>{sending?'Saving…':attempted?'Retry this confirmation':'Confirm & save measurement'}</button>
+      <button className="secondary" disabled={sending} onClick={clearReview}>Cancel review</button>
+      {attempted&&<p className="hint">A retry uses the identical confirmation and key. PHP only acknowledges an expired sample if it was already committed. Otherwise review a new reading. Disconnecting or a sensor fault blocks retry.</p>}
+      </div>}
+      {error&&<p role="alert" className="error">{error}</p>}
+    </section>
+    <section className="panel help"><Radio/><h2>Optional NFC tag link</h2><p>NFC is optional identification, never a weight or permission source. Select any spool manually above; USB works without a tag.</p><label>Optional NFC UID<input value={uid} maxLength={50} placeholder="04:A1:B2:C3:D4:E5:F6" onChange={e=>setUID(e.target.value)}/></label><button className="primary" disabled={!selected||saving||sending} onClick={async()=>{if(selected&&await act({type:'link',id:selected.id,uid}))setMessage(uid?'Tag linked after confirmation.':'Tag unlinked after confirmation.')}}><Link size={16}/> Save optional tag link</button><div className="tagRecords">{state.spools.map(p=><div key={p.id}><strong>{p.name}<small>{p.code||p.id.slice(0,8)}{p.status==='archived'?' · Archived':''}</small></strong><code>{p.nfc||'No tag linked'}</code></div>)}</div></section>
+    <section className="panel help"><h2>Protocol & hardware status</h2><p>ESP8266 NodeMCU + HX711: D5 = DT, D6 = SCK, 115200 baud. Each frame ends with a newline; stable and calibrated are required booleans.</p><pre>{'{"v":1,"deviceId":"DLOOP-SCALE-01","seq":123,"grossG":984.6,"stable":true,"calibrated":true}\n'}</pre><p className="hint">Readings expire after five seconds. Duplicate/out-of-order sequences and faults invalidate confirmation. A device reboot requires disconnect/reconnect. A UID is optional. Current Wi-Fi diagnostic text is not a valid frame; this phase does not change firmware or verify physical calibration.</p></section>
+    {message&&<div role="status" className="notice wide">{message}</div>}
+  </div>;
+}

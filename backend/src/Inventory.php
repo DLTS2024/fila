@@ -112,7 +112,7 @@ final class Inventory
         $allowed = match ($type) {
             'brand' => ['brand'], 'profile' => ['profile'], 'add' => ['spool', 'confirmed'],
             'update' => ['id', 'spool', 'confirmed', 'version'],
-            'weigh' => ['id', 'gross', 'tare', 'confirmed', 'version'],
+            'weigh' => ['id', 'gross', 'tare', 'confirmed', 'version', 'reading'],
             'print' => ['name', 'printer', 'note', 'lines', 'status', 'confirmed'],
             'assign' => ['slot', 'id', 'confirmed'], 'undo' => ['id', 'confirmed'],
             'catalogue' => ['filament'], 'link' => ['id', 'uid', 'confirmed'],
@@ -241,25 +241,53 @@ final class Inventory
         if ($v['gross'] !== null) { $this->measurement($id, $v); }
     }
 
-    private function measurement(string $id, array $v): void
+    private function measurement(string $id, array $v, ?array $reading = null): void
     {
-        $this->execute("INSERT INTO measurements (id, spool_id, gross_g, effective_tare_g, net_g, source, stable, received_at, confirmed_by) VALUES (?, ?, ?, ?, ?, 'manual', 1, UTC_TIMESTAMP(6), ?)", [self::uuid(), $id, $v['gross'], $v['tare'], $v['remaining'], $this->actor]);
+        $source = $reading && $reading['transport'] === 'usb' ? 'usb' : 'manual';
+        $at = $reading ? (new \DateTimeImmutable($reading['receivedAt']))->format('Y-m-d H:i:s.u') : null;
+        $this->execute('INSERT INTO measurements (id, spool_id, gross_g, effective_tare_g, net_g, source, device_id, device_sequence, stable, received_at, confirmed_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, COALESCE(?, UTC_TIMESTAMP(6)), ?)', [self::uuid(), $id, $v['gross'], $v['tare'], $v['remaining'], $source, $reading['deviceId'] ?? null, $reading['seq'] ?? null, $at, $this->actor]);
+    }
+
+    private function scaleReading(mixed $value, string $gross): array
+    {
+        $r = self::object($value);
+        Validation::keys($r, ['v','deviceId','seq','grossG','stable','calibrated','receivedAt','connectionId','transport']);
+        if (($r['v'] ?? null) !== 1 || ($r['deviceId'] ?? null) !== 'DLOOP-SCALE-01'
+            || !is_int($r['seq'] ?? null) || $r['seq'] < 0 || $r['seq'] > 4294967295
+            || ($r['stable'] ?? null) !== true || ($r['calibrated'] ?? null) !== true
+            || !is_string($r['connectionId'] ?? null) || !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iD', $r['connectionId'])
+            || !in_array($r['transport'] ?? '', ['usb','simulator'], true)
+            || (!is_int($r['grossG'] ?? null) && !is_float($r['grossG'] ?? null))
+            || Validation::mass($r['grossG']) !== Validation::mass($gross)) {
+            throw new HttpError(422, 'invalid_scale_reading', 'A stable, calibrated version 1 reading matching the confirmed gross mass is required.');
+        }
+        $text = $r['receivedAt'] ?? null;
+        if (!is_string($text) || !preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/D', $text)) { throw new HttpError(422, 'invalid_scale_reading', 'Invalid scale receipt timestamp.'); }
+        $at = \DateTimeImmutable::createFromFormat('!Y-m-d\TH:i:s.v\Z', $text, new \DateTimeZone('UTC'));
+        if (!$at || $at->format('Y-m-d\TH:i:s.v\Z') !== $text) { throw new HttpError(422, 'invalid_scale_reading', 'Invalid scale receipt timestamp.'); }
+        $age = (int) floor(microtime(true) * 1000) - ($at->getTimestamp() * 1000 + (int) $at->format('v'));
+        if ($age > 5000 || $age < -1000) { throw new HttpError(422, 'stale_scale_reading', 'Scale reading expired or browser/server clocks differ. Review a new reading.'); }
+        $existing = $this->rows("SELECT id FROM activity_events WHERE event_type = 'weigh' AND JSON_UNQUOTE(JSON_EXTRACT(details_json, '$.reading.connectionId')) = ? AND JSON_UNQUOTE(JSON_EXTRACT(details_json, '$.reading.deviceId')) = ? AND JSON_UNQUOTE(JSON_EXTRACT(details_json, '$.reading.seq')) = ? LIMIT 1", [$r['connectionId'], $r['deviceId'], (string) $r['seq']]);
+        if ($existing) { throw new HttpError(409, 'scale_already_confirmed', 'This scale frame was already confirmed. Receive and review a new reading.'); }
+        return $r;
     }
 
     private function update(array $a): void
     {
         self::confirmed($a); $old = $this->spool($a['id'] ?? null, $a, true);
         if ($a['type'] === 'weigh') {
-            $p = ['name' => $old['name'], 'brandId' => $old['brand_id'], 'material' => $old['material'], 'colorName' => $old['color_name'], 'color' => $old['color_hex'], 'spoolType' => $old['spool_type'], 'capacity' => $old['nominal_capacity_g'], 'initial' => $old['initial_filament_g'], 'mode' => 'gross', 'gross' => $a['gross'] ?? null, 'profileId' => $old['tare_profile_id'], 'tareOverride' => $a['tare'] ?? null, 'location' => $old['location'], 'catalogueId' => $old['catalogue_product_id'], 'registrationKind' => $old['registration_kind'], 'status' => $old['status']];
+            $p = ['name' => $old['name'], 'brandId' => $old['brand_id'], 'material' => $old['material'], 'colorName' => $old['color_name'], 'color' => $old['color_hex'], 'spoolType' => $old['spool_type'], 'capacity' => $old['nominal_capacity_g'], 'initial' => $old['initial_filament_g'], 'mode' => 'gross', 'gross' => $a['gross'] ?? null, 'profileId' => $old['tare_profile_id'], 'tareOverride' => array_key_exists('reading', $a) ? $old['tare_override_g'] : ($a['tare'] ?? null), 'location' => $old['location'], 'catalogueId' => $old['catalogue_product_id'], 'registrationKind' => $old['registration_kind'], 'status' => $old['status']];
         } else { $p = self::object($a['spool'] ?? null); }
         $v = $this->spoolValues($p, $old);
+        $reading = array_key_exists('reading', $a) ? $this->scaleReading($a['reading'], $v['gross']) : null;
+        if ($reading && Validation::mass($a['tare'] ?? null) !== Validation::mass($v['tare'])) { throw new HttpError(422, 'scale_tare_changed', 'Scale confirmation must use the saved physical-spool tare. Edit the spool separately to change tare.'); }
         if ($v['status'] === 'archived' && $this->rows('SELECT id FROM printer_slots WHERE spool_id = ?', [$old['id']])) { throw new HttpError(422, 'spool_assigned', 'Unload this spool from its printer slot before archiving.'); }
         $this->execute('UPDATE spools SET name = ?, brand_id = ?, catalogue_product_id = ?, tare_profile_id = ?, tare_override_g = ?, tare_default_g = ?, material = ?, color_name = ?, color_hex = ?, spool_type = ?, registration_kind = ?, nominal_capacity_g = ?, initial_filament_g = ?, remaining_g = ?, last_gross_g = ?, measured = ?, location = ?, status = ?, version = version + 1, updated_at = UTC_TIMESTAMP(6) WHERE id = ?', [$v['name'], $v['brand'], $v['catalogue'], $v['profile'], $v['override'], $v['default'], $v['material'], $v['colorName'], $v['color'], $v['spoolType'], $v['kind'], $v['capacity'], $v['initial'], $v['remaining'], $v['gross'], (int) $v['measured'], $v['location'], $v['status'], $old['id']]);
         if ($old['tare_override_g'] !== $v['override'] || $old['tare_default_g'] !== $v['default'] || (string) $old['tare_profile_id'] !== (string) $v['profile']) {
             $this->event('tare', $v['name'], [self::change($old, Validation::mass($old['remaining_g']), (bool) $old['measured'])], 'Physical spool tare changed; balance changes only as explicitly confirmed.', ['spoolId' => $old['id'], 'before' => $old['tare_override_g'] ?? $old['tare_default_g'], 'after' => $v['tare']]);
         }
-        $this->event($v['measured'] ? 'weigh' : 'correction', $v['name'], [self::change($old, Validation::mass($v['remaining']), $v['measured'])], $v['measured'] ? 'Confirmed gross minus effective tare' : 'Confirmed absolute remaining mass', ['statusBefore' => $old['status'], 'statusAfter' => $v['status']]);
-        if ($v['gross'] !== null) { $this->measurement($old['id'], $v); }
+        $this->event($v['measured'] ? 'weigh' : 'correction', $v['name'], [self::change($old, Validation::mass($v['remaining']), $v['measured'])], $reading && $reading['transport'] === 'simulator' ? 'Confirmed simulator reading (not physical hardware)' : ($v['measured'] ? 'Confirmed gross minus effective tare' : 'Confirmed absolute remaining mass'), ['statusBefore' => $old['status'], 'statusAfter' => $v['status'], ...($reading ? ['reading' => $reading] : [])]);
+        if ($v['gross'] !== null) { $this->measurement($old['id'], $v, $reading); }
     }
 
     private function printJob(array $a): void

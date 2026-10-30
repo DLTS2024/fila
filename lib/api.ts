@@ -44,6 +44,7 @@ export async function request<T>(path: string, body?: unknown, idempotencyKey?: 
 
 export type StockResponse = { revision: number; state: InventoryState };
 export type Session = { authenticated: boolean; user: null|{id:string;email:string;role:string}; csrfToken: string };
+export type MeasurementConfirmation = {version:number;gross:string;tare:string;confirmed:true;reading?:{v:1;deviceId:string;seq:number;grossG:number;stable:boolean;calibrated:boolean;receivedAt:string;connectionId:string;transport:'usb'|'simulator'}};
 async function sessionRequest(path: string, body?: unknown): Promise<Session> {
   const result = await request<{data:Session}>(path, body);
   if (!result.data || typeof result.data.csrfToken !== 'string' || typeof result.data.authenticated !== 'boolean') throw new ApiError('Invalid session response.',502);
@@ -64,5 +65,6 @@ export const studioApi = {
     return data;
   },
   updateStock: (revision: number, action: unknown, key: string = crypto.randomUUID()) => request<StockResponse>('/stock', { revision, action }, key),
+  confirmMeasurement: (id:string,revision:number,measurement:MeasurementConfirmation,key:string) => request<StockResponse>(`/spools/${encodeURIComponent(id)}/measurements`,{revision,...measurement},key),
   getScaleReading: () => request<{reading: {gross_g: number; stable: number; recorded_at: string} | null}>('/scale-reading'),
 };

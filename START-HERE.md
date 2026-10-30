@@ -11,3 +11,6 @@ local studio database/admin for real inventory; never reuse public fixture users
 
 Do not run legacy D1/Vinext scripts or flash firmware. See docs/PHASE-4-REPORT.md
 for verification, limitations and rollback. No production deployment is performed.
+
+
+For Phase 5A USB scale/simulator setup and isolated test inventory, read docs/PHASE-5A-LOCAL.md and docs/PHASE-5A-REPORT.md. USB needs supported desktop Chromium on localhost or HTTPS. The existing Wi-Fi firmware remains unchanged; physical compatibility is not verified. Manual inventory entry remains.

@@ -72,3 +72,6 @@ through to HTML. Validate with the actual hosting stack before cutover.
 
 No Node runtime, continuously running backend process, Cloudflare Worker or D1
 binding is used. SQL migrations and maintenance run as explicit CLI tasks.
+
+
+Phase 5A: Native Web Serial requires supported desktop Chromium and HTTPS in production (localhost is allowed for development). Hosting permissions policies must allow same-origin serial access. Static assets and PHP remain sufficient; no Node runtime or serial bridge is required. Physical firmware compatibility and cPanel browser/device behavior have not been verified. No deployment was performed.

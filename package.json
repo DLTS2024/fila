@@ -19,7 +19,11 @@
     "test:php": "node scripts/check-php.mjs",
     "test:inventory:http": "node backend/tests/inventory-http.mjs",
     "test:inventory:concurrency": "node backend/tests/inventory-concurrency.mjs",
-    "test:inventory:ui": "node scripts/check-inventory-ui.mjs"
+    "test:inventory:ui": "node scripts/check-inventory-ui.mjs",
+    "test:scale": "node scripts/check-scale.mjs",
+    "test:scale:ui": "node scripts/check-scale-ui.mjs",
+    "test:scale:api": "node backend/tests/scale-http.mjs",
+    "test:scale:live": "node scripts/check-scale-live-ui.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

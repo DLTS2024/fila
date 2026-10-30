@@ -69,3 +69,6 @@ have been created or deployed. Vite preview/PHP's built-in server are local tool
 D1 imports/restores and ESP8266 firmware changes are deferred. JSON export is a
 loaded-state review copy, not a full database backup. No browser-only inventory
 or fake successful saves are used. Read the Phase 4 report before deployment.
+
+
+Phase 5A adds browser USB scale input, manual spool selection, explicit measurement review and a browser simulator. Physical hardware has not been tested: the existing Wi-Fi firmware is unchanged and does not emit the new USB protocol. See [local setup](docs/PHASE-5A-LOCAL.md), [verification report](docs/PHASE-5A-REPORT.md), and [serial protocol](docs/USB-SCALE-PROTOCOL.md).

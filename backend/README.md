@@ -15,3 +15,6 @@ Production layout is documented in docs/CPANEL-PHP-DEPLOYMENT.md.
 Use PHP 8.2+ with PDO MySQL and sessions, MySQL 8.0.16+ or MariaDB 10.6+.
 Actual Phase 4 verification used PHP 8.5.12 and MariaDB 10.11.16. Other engines,
 cPanel deployment, browser visual QA and physical hardware remain unverified.
+
+
+Phase 5A reuses the measurement endpoint with optional validated scale metadata; no schema migration is required. See docs/USB-SCALE-PROTOCOL.md and docs/PHASE-5A-REPORT.md for freshness, simulator provenance and retry semantics.

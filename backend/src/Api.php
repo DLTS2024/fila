@@ -50,7 +50,7 @@ final class Api
             if ($path === '/api/v1/auth/login') { Http::json(200, ['data' => $auth->login(Http::body(['email', 'password']))]); }
             $user = $auth->requireAdmin();
             if ($path === '/api/v1/auth/logout') { Http::body([]); Http::json(200, ['data' => $auth->logout()]); }
-            $body = Http::body(['revision','action','brand','profile','spool','filament','confirmed','version','versions','gross','tare','name','note','printer','lines','status','id','uid']);
+            $body = Http::body(['revision','action','brand','profile','spool','filament','confirmed','version','versions','gross','tare','name','note','printer','lines','status','id','uid','reading']);
             if ($path !== '/api/v1/stock') {
                 $revision = $body['revision'] ?? null; unset($body['revision']);
                 if ($path === '/api/v1/brands' || $resource === 'brands') {
