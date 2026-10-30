@@ -5,6 +5,27 @@ namespace DLoop;
 
 final class Validation
 {
+    public static function mass(mixed $value): int
+    {
+        if ((!is_string($value) && !is_int($value) && !is_float($value)) || !preg_match('/^(0|[1-9][0-9]{0,5})(?:\.([0-9]{1,2}))?$/D', (string) $value, $parts)) {
+            throw new HttpError(422, 'validation_error', 'Enter a nonnegative mass with at most two decimal places.');
+        }
+        $cents = (int) $parts[1] * 100 + (int) str_pad($parts[2] ?? '', 2, '0');
+        if ($cents > 10000000) { throw new HttpError(422, 'validation_error', 'Mass must not exceed 100,000 g.'); }
+        return $cents;
+    }
+
+    public static function decimal(int $cents): string
+    {
+        return intdiv($cents, 100) . '.' . str_pad((string) ($cents % 100), 2, '0', STR_PAD_LEFT);
+    }
+
+    public static function version(mixed $value): int
+    {
+        if (!is_int($value) || $value < 1) { throw new HttpError(422, 'validation_error', 'A positive integer record version is required.'); }
+        return $value;
+    }
+
     public static function keys(array $input, array $allowed): void
     {
         if (array_diff(array_keys($input), $allowed)) {

@@ -1,0 +1,25 @@
+import {spawn} from 'node:child_process';
+import assert from 'node:assert/strict';
+import {writeFileSync} from 'node:fs';
+assert.equal(process.env.DLOOP_DISPOSABLE_TEST,'yes');
+const php=process.env.DLOOP_PHP||'C:/xampp/php/php.exe';
+function worker(input){return new Promise((resolve,reject)=>{const child=spawn(php,['backend/tests/inventory-worker.php'],{env:process.env});let out='',err='';child.stdout.on('data',v=>out+=v);child.stderr.on('data',v=>err+=v);child.on('error',reject);child.on('close',code=>{if(code!==0)return reject(Error(`Worker failed (${code}): ${err}`));try{resolve(JSON.parse(out))}catch(e){reject(e)}});child.stdin.end(JSON.stringify(input));});}
+let state=(await worker({kind:'snapshot'})).result;
+assert(!state.state.spools.some(p=>p.colorName==='RACE'),'Use a fresh disposable run; concurrency evidence is never reset.');
+const brand=state.state.brands.find(b=>b.name==='Verified Brand');assert(brand);
+const profile=state.state.profiles.find(p=>p.brandId===brand.id&&p.active&&p.verified);assert(profile);
+const template={name:'Concurrent race spool',brandId:brand.id,material:'PETG',colorName:'RACE',color:'#225588',spoolType:profile.spoolType,capacity:String(profile.capacity),initial:'1000',remaining:'500',mode:'manual',registrationKind:'partial',profileId:profile.id,tareOverride:null,location:'Test only',catalogueId:null};
+const before=state.revision;
+const jobs=await Promise.all(Array.from({length:6},()=>worker({action:{type:'add',spool:template,confirmed:true},retry:true})));
+assert(jobs.every(j=>j.status===200));state=(await worker({kind:'snapshot'})).result;
+const race=state.state.spools.filter(p=>p.colorName==='RACE');assert.equal(race.length,6);assert.equal(new Set(race.map(p=>p.code)).size,6);assert.equal(state.revision,before+6);
+assert.deepEqual(race.map(p=>p.code).sort(),Array.from({length:6},(_,i)=>'PETG_RACE_'+String(i+1).padStart(2,'0')));
+const p=race[0],payload={...template,name:p.name,profileId:p.profileId,tareOverride:p.tareOverride,material:p.material,colorName:p.colorName,color:p.color,status:'active'};
+const updates=await Promise.all(['400','450'].map(remaining=>worker({revision:state.revision,action:{type:'update',id:p.id,version:p.version,spool:{...payload,remaining},confirmed:true}})));
+assert.deepEqual(updates.map(u=>u.status).sort(),[200,409]);
+state=(await worker({kind:'snapshot'})).result;assert([400,450].includes(state.state.spools.find(s=>s.id===p.id).remaining));assert.equal(state.state.spools.find(s=>s.id===p.id).version,p.version+1);
+const key=crypto.randomUUID(),request={revision:state.revision,key,action:{type:'add',spool:{...template,name:'Concurrent retry spool',colorName:'RACERETRY'},confirmed:true}};
+const retries=await Promise.all([worker(request),worker(request)]);assert(retries.every(r=>r.status===200));
+state=(await worker({kind:'snapshot'})).result;assert.equal(state.state.spools.filter(p=>p.colorName==='RACERETRY').length,1);
+writeFileSync('backend/var/phase4/concurrency-results.json',JSON.stringify({workers:6,uniqueCodes:race.map(p=>p.code).sort(),updateStatuses:updates.map(u=>u.status),identicalRetryStatuses:retries.map(r=>r.status),revision:state.revision,verifiedAt:new Date().toISOString()},null,2));
+console.log('PASS: six independent PHP/PDO writers allocate unique monotonic codes; two conflicting updates yield one success/one 409; simultaneous identical retries create one spool.');

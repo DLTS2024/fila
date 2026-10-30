@@ -1,18 +1,17 @@
-# PHP backend foundation
+﻿# PHP inventory backend
 
-Requirements: PHP 8.2+ with PDO MySQL, sessions, JSON, hash and filter; MySQL
-8.0.16+ or MariaDB 10.6+. Use a currently maintained PHP/DB release supported by
-your host. No Composer packages or resident backend process are required.
+Phase 4 implements authenticated inventory read/write endpoints, exact masses,
+immutable code allocation, verified profile snapshots, version/idempotency checks,
+usage/undo, assignments, dashboard aggregates and actor history. No Composer or
+resident backend process is required.
 
-Only `public/` belongs in a web document root. Keep `src/`, `bin/`, `migrations/`,
-configuration and `var/` private. Do not put PHP code into the frontend `dist`.
+Only public/ belongs under a web document root. src/, bin/, migrations/,
+config.local.php and var/ remain private. Never upload local test credentials.
 
-- [Windows local setup](../docs/PHP-LOCAL-SETUP.md)
-- [cPanel deployment](../docs/CPANEL-PHP-DEPLOYMENT.md)
-- [API contract](../docs/PHP-API.md)
-- [Verification, limitations and rollback](../docs/PHASE-3-REPORT.md)
+Read docs/PHASE-4-API.md, docs/PHASE-4-LOCAL.md and docs/PHASE-4-REPORT.md (relative
+to the repository root) for contracts, commands, executed tests and rollback.
+Production layout is documented in docs/CPANEL-PHP-DEPLOYMENT.md.
 
-The Phase 2 UI is unchanged and still expects the legacy-shaped `/stock` facade,
-which is deliberately not implemented here. Phase 3 exposes normalized read
-endpoints and auth. Connecting the UI and implementing confirmed write endpoints
-are subsequent work; no legacy data import or hardware change is performed.
+Use PHP 8.2+ with PDO MySQL and sessions, MySQL 8.0.16+ or MariaDB 10.6+.
+Actual Phase 4 verification used PHP 8.5.12 and MariaDB 10.11.16. Other engines,
+cPanel deployment, browser visual QA and physical hardware remain unverified.

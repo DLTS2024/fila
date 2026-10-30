@@ -16,6 +16,7 @@ final class Database
             \PDO::ATTR_TIMEOUT => 5,
         ]);
         $pdo->exec("SET time_zone = '+00:00'");
+        $pdo->exec('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
         $pdo->exec("SET SESSION sql_mode = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'");
         $version = (string) $pdo->query('SELECT VERSION()')->fetchColumn();
         if (stripos($version, 'MariaDB') !== false) {

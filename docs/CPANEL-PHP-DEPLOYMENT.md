@@ -1,5 +1,15 @@
 # cPanel PHP deployment preparation — not deployed
 
+Phase 4 update: authentication and inventory write endpoints are implemented;
+see PHASE-4-API.md and PHASE-4-LOCAL.md. Apply all four migrations only to an
+approved backed-up target. After setup, the restricted runtime account now needs
+SELECT on inventory/auth tables; INSERT on brands, profiles, catalogue, spools,
+sequences, measurements, events/changes, idempotency and NFC; UPDATE on brands,
+profiles, spools, sequences, revision and printer slots; and DELETE only on NFC
+associations for explicit unlink. Keep the existing users password-rehash and
+login-throttle grants. Do not grant schema modification, user creation, or
+spool/history deletion to the runtime account. The runtime grants must be reviewed separately from the migration/setup account.
+
 Use PHP 8.2+ with PDO MySQL and sessions, Apache 2.4 rewrite support, HTTPS for
 filament.dlts.in, and MySQL 8.0.16+ / MariaDB 10.6+. Verify with the host before
 cutover. Do not publish phpinfo or a database/setup web page.
@@ -41,19 +51,18 @@ Do not upload backups, .tools, .git, .wrangler, work, node_modules or legacy cod
    then --apply only for the approved new target. Create first admin over CLI
    through secure stdin. If no CLI exists, ask hosting support to run the private
    scripts; do not temporarily expose them as a web installer.
-6. Use a separate migration/setup DB user where possible. After setup, the runtime
-   user needs SELECT on users/inventory/profile tables, UPDATE(password_hash,
-   updated_at) on users for rehash, and SELECT/INSERT/UPDATE on login_throttles.
-   It does not need CREATE/DROP/ALTER/GRANT, INSERT users, or UPDATE installation_state.
-   Future write endpoints will need separately reviewed grants. Switch private
-   config to the restricted runtime account after setup.
+6. Use a separate migration/setup DB user where possible. After setup, use the inventory
+   read/write grants described above, UPDATE(password_hash,updated_at) on users
+   for rehash and SELECT/INSERT/UPDATE on login_throttles. It does not need
+   CREATE/DROP/ALTER/GRANT, INSERT users, UPDATE installation_state, or DELETE
+   spools/history. Switch private config to the restricted runtime account.
 7. Ensure PHP display_errors=Off, log_errors=On and logs outside public roots.
    Verify HTTPS reaches PHP as HTTPS=on or SERVER_PORT=443. The API does not trust
    arbitrary X-Forwarded-Proto/For headers. Configure trusted proxies at the host
    layer if necessary. Redirect HTTP to HTTPS at cPanel/Apache before PHP; test the
    resulting secure cookie. Keep the shipped API rewrites before the SPA fallback.
 8. Test anonymous session, login/CSRF/logout, protected reads, JSON 404/405, cookie
-   flags and private-path denial on staging. There is no auth UI yet. Never use
+   flags and private-path denial on staging. Use the React login and inventory workflows. Never use
    PHP's built-in server or Vite preview for production.
 
 The supplied .htaccess routes API requests to PHP and unknown frontend paths to

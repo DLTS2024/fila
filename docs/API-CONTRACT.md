@@ -1,34 +1,18 @@
-# Frontend API boundary (Phase 2)
+﻿# Frontend API boundary — Phase 4
 
-Phase 3 update: the PHP foundation now exposes authentication and normalized
-read routes (see PHP-API.md). The `/stock` and `/scale-reading` facades below
-remain unimplemented, so the preserved UI still stays disconnected. They must
-not be implemented by reconnecting legacy D1 or bypassing PHP authorization.
+lib/api.ts is the centralized relative /api/v1 client. Login/session restoration
+supply an in-memory CSRF token; cookies are sent same-origin. Inventory requests
+use /stock, an authenticated adapter over normalized MySQL tables. No D1 or
+browser-local fallback is used. See PHASE-4-API.md for action/resource contracts.
 
-All frontend HTTP calls go through `lib/api.ts` and relative `/api/v1` URLs.
-The client sends same-origin cookies, requests JSON, has a 10-second timeout,
-and rejects HTML SPA fallbacks rather than interpreting them as inventory.
-No credentials are bundled. A future session handler can use `setCsrfToken` to
-attach `X-CSRF-Token`; PHP must validate it and enforce authentication itself.
+All inventory saves use Idempotency-Key. The same intent/key is retained across
+network or ambiguous server failures. Successful operations reload current state;
+conflicts require review and never silently overwrite. New/update spool forms
+freeze a preview and require explicit confirmation before a request is sent.
 
-The compatibility facade currently expects:
+The Vite development proxy uses server-only DLOOP_API_PROXY, preserving /api/v1
+paths. Never use VITE_ variables for passwords/tokens. Production uses relative
+paths on the same cPanel origin. No Node process is required by production output.
 
-- GET `/api/v1/stock`: `{ revision: number, state: { spools, history, slots, catalogue? } }`.
-- POST `/api/v1/stock`: `{ revision, action }`, returning the updated snapshot.
-- GET `/api/v1/scale-reading`: `{ reading: null | { gross_g, stable, recorded_at } }`.
-- Errors: non-2xx JSON `{ error: string }`; conflicts should use 409.
-
-These preserve the existing UI's state/action shape. Phase 3 should map this
-facade to the proposed resource endpoints (spools, measurements, profiles,
-activity, authentication). The facade does not require a MySQL JSON-blob model.
-PHP remains authoritative for validation, transactions and history.
-
-Until PHP exists, failed inventory loading shows an explicit notice, renders the
-existing empty-state interface, and disables saves/export/restore. Empty figures
-are not a statement about actual saved inventory. No mock inventory, browser
-storage, automatic D1 fallback or migration is used.
-
-An optional local proxy is configured with the server-only environment variable
-`DLOOP_API_PROXY=http://127.0.0.1:8000`. The target must preserve `/api/v1` paths.
-It is not needed for browsing the disconnected UI. Do not use `VITE_` variables
-for passwords or tokens: they can be exposed in browser assets.
+Legacy restore/import and hardware ingestion remain deferred. See PHASE-4-LOCAL.md
+for commands and PHASE-4-REPORT.md for actual executed verification and limits.

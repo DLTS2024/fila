@@ -74,9 +74,22 @@ try {
     }
     sort($expectedTables); $actualTables = array_keys($tables); sort($actualTables);
     $assert($expectedTables === $actualTables, 'exact table set');
-    $assert(count($expectedTables) === 16 && $foreignKeys > 0 && $indexes > 0 && $massColumns > 0 && $checkConstraints > 0, 'metadata coverage');
+    $assert(count($expectedTables) === 17 && $foreignKeys > 0 && $indexes > 0 && $massColumns > 0 && $checkConstraints > 0, 'metadata coverage');
+    foreach (['brands'=>['active','version'], 'tare_profiles'=>['active','version'], 'spools'=>['spool_type','registration_kind','tare_default_g'], 'activity_events'=>['sequence']] as $table=>$columns) {
+        foreach ($columns as $column) {
+            $q=$pdo->prepare('SELECT data_type, numeric_precision, numeric_scale, extra FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name=?');
+            $q->execute([$table,$column]);$row=$q->fetch();$assert((bool)$row,'added column '.$table.'.'.$column);
+            if ($column==='tare_default_g') { $assert($row['data_type']==='decimal'&&(int)$row['numeric_precision']===10&&(int)$row['numeric_scale']===2,'physical tare decimal');$massColumns++; }
+            if ($column==='sequence') { $assert(str_contains($row['extra'],'auto_increment'),'event ordering'); }
+        }
+    }
+    foreach (['ck_brand_active','ck_profile_active','ck_registration_kind','ck_spool_default_tare'] as $name) {
+        $q=$pdo->prepare("SELECT COUNT(*) FROM information_schema.table_constraints WHERE constraint_schema=DATABASE() AND constraint_name=? AND constraint_type='CHECK'");$q->execute([$name]);$assert((int)$q->fetchColumn()===1,'added constraint '.$name);$checkConstraints++;
+    }
+    $q=$pdo->query("SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='activity_events' AND index_name='uq_event_sequence' AND non_unique=0 AND column_name='sequence'");
+    $assert((int)$q->fetchColumn()===1,'unique event sequence');$indexes++;
     $assert($pdo->query('SELECT @@session.time_zone')->fetchColumn() === '+00:00', 'UTC connection');
     $initialized = $pdo->query('SELECT initialized_at FROM installation_state WHERE id = 1')->fetchColumn();
     $assert(is_string($initialized) && $initialized !== '', 'installation closed');
-    echo "PASS: $checks metadata assertions; 16 InnoDB tables, $foreignKeys foreign keys, $indexes named indexes, $checkConstraints CHECK constraints, $massColumns DECIMAL mass columns; migration checksums and UTC verified.\n";
+    echo "PASS: $checks metadata assertions; 17 InnoDB tables, $foreignKeys foreign keys, $indexes named indexes, $checkConstraints CHECK constraints, $massColumns DECIMAL mass columns; migration checksums and UTC verified.\n";
 } catch (Throwable $e) { cliFailure($e); }

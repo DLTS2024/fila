@@ -1,5 +1,10 @@
 # Windows PHP + MySQL/MariaDB local setup
 
+Phase 4 is now verified and includes authenticated frontend inventory management.
+Use PHASE-4-LOCAL.md for current run/test commands and the new isolated test DB.
+The Phase 3.5 environment below remains a separate retained recovery baseline;
+do not point the new application at that DB without an explicit backed-up upgrade.
+
 ## Verified XAMPP environment (Phase 3.5, 30 October 2026)
 
 This Windows machine now has XAMPP at `C:\xampp`: PHP 8.5.12 with pdo_mysql

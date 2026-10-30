@@ -80,7 +80,7 @@ try {
   assert(screen.getByRole('button', {name: 'Add spool'}).disabled);
   assert(screen.getByText(/Inventory has not been loaded/));
   fireEvent.click(screen.getByRole('button', {name: 'Add your first spool'}));
-  assert(screen.getByRole('button', {name: 'Save spool'}).disabled);
+  assert(screen.getByRole('button', {name: 'Review new spool'}).disabled);
   await waitFor(() => assert.equal(document.querySelectorAll('nav button').length, 7));
   assert(calls.every(c => c.method === 'GET'));
   console.log('PASS: all seven view headings and navigation states; populated spool/catalogue/activity rendering; disconnected notice and disabled inventory saves. Fixtures only, no D1 access.');

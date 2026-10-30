@@ -1,68 +1,71 @@
 ﻿# D Loop 3D — Filament Studio V2
 
-React + TypeScript + Vite static frontend, prepared for a PHP 8.x / MySQL API
-on standard cPanel hosting at filament.dlts.in. Node.js is local build tooling only.
-Phase 3 adds the private PHP API foundation and MySQL/MariaDB migrations. No production database has been created. See backend/README.md and docs/PHASE-3-REPORT.md.
+Authenticated React + TypeScript + Vite frontend with a PHP 8.2+ / MySQL-MariaDB
+REST API for standard cPanel hosting. Production serves static assets and PHP per
+request; Node is local frontend tooling only. No Cloudflare or resident Node backend.
 
-## Local development
+Phase 4 implements brands/verified tare profiles, physical spool registration and
+corrections, immutable spool codes, printer assignments, usage/undo, dashboards
+and actor history. The original seven views, branding and inventory rules remain.
 
-Use Node.js 22.15+ (this conversion was verified with Node 24.22.1) and npm:
+## Run locally
+
+XAMPP PHP and MariaDB are already installed. From the project root, terminal 1:
 
 ```powershell
-npm.cmd ci
-npm.cmd run dev
+$env:DLOOP_CONFIG_FILE = Get-Content backend/var/phase4/active-config.txt -Raw
+& 'C:\xampp\php\php.exe' -S 127.0.0.1:8000 -t backend/public backend/router.php
 ```
 
-Open the localhost address printed by Vite. The development server binds to
-127.0.0.1. The PHP read/auth foundation exists, but the UI adapter and auth form are pending: all seven views can be browsed,
-but inventory is not loaded and saves/export/restore are disabled. No mock data
-or localStorage inventory replaces the saved database.
-
-When PHP is available, set its local proxy target before starting Vite:
+Terminal 2:
 
 ```powershell
 $env:DLOOP_API_PROXY = 'http://127.0.0.1:8000'
-npm.cmd run dev
+npm.cmd run dev -- --port 5173 --strictPort
 ```
 
-The API must handle `/api/v1` paths. See docs/API-CONTRACT.md.
+Open http://127.0.0.1:5173. See docs/PHASE-4-LOCAL.md for disposable login details,
+your own studio/admin setup, exact verification commands and safe rollback.
+Never use fixture accounts for production or upload private configuration.
 
-## Checks and build
+## Build and checks
 
 ```powershell
+$env:DLOOP_PHP = 'C:\xampp\php\php.exe'
+npm.cmd run test:php
+npm.cmd run typecheck
 npm.cmd run test:stock
 npm.cmd run test:api
 npm.cmd run test:ui
 npm.cmd run build
-npm.cmd run preview
 ```
 
-`build` runs TypeScript, Vite's client build, and static-artifact validation.
-Deploy only the contents of `dist`, never the project folder. The retained public
-firmware downloads are source/example files, not server executables. `vite preview`
-is only a local preview; cPanel serves the files directly. No Node process,
-Vinext, Workers or D1 is required by the production frontend.
+Deploy only dist contents plus backend/public files; keep PHP src, migrations,
+configuration, logs and sessions outside the public root. No production resources
+have been created or deployed. Vite preview/PHP's built-in server are local tools.
 
-No production deployment is performed. The PHP foundation includes session auth, CSRF validation, PDO prepared statements and input validation. Inventory write endpoints and UI integration remain pending. Apache rewrite rules are prepared under backend/public; nothing has been deployed.
+## Current documentation
 
-## Project map
+- docs/PHASE-4-REPORT.md — exact results and remaining limitations
+- docs/PHASE-4-API.md — routes, validation, concurrency and idempotency
+- docs/PHASE-4-LOCAL.md — local run, isolated tests and rollback
+- docs/PHASE-4-CHANGED-FILES.md — complete changed-file list
+- docs/CPANEL-PHP-DEPLOYMENT.md — private/public hosting layout and grants
+- docs/ROLLBACK.md — original project backups and recovery
 
-- app/page.tsx — preserved studio UI and seven navigation views
-- app/connections.tsx — preserved hardware UI, pending ESP8266 USB integration
-- app/globals.css — original branding and responsive design
-- src/main.tsx and index.html — React entry point and static metadata
-- lib/api.ts — centralized relative PHP API boundary
-- lib/stock.ts — unchanged inventory rules and types
-- components/, hooks/, vendor/ — preserved UI support files
-- legacy/ — archived APIs, D1, Worker, old configuration and scripts
-- public/scale/ — unchanged firmware sources and prototype instructions
-- docs/ROLLBACK.md — private backups, baseline tag and recovery procedure
-- docs/PHASE-1-2-REPORT.md — changes, verification and remaining limitations
-- backend/ — Phase 3 private PHP application, public entry point, SQL migrations and tests
-- docs/PHP-LOCAL-SETUP.md — Windows PHP/MySQL setup and disposable testing
-- docs/CPANEL-PHP-DEPLOYMENT.md — private paths, Apache rules and hosting preparation
-- docs/PHASE-3-REPORT.md — current verification limits and rollback
+## Source map
 
-The original README and setup instructions are archived under legacy/. They
-refer to V1 and must not be followed as V2 installation instructions.
+- app/page.tsx, app/globals.css — preserved studio views and visual design
+- app/authenticated-studio.tsx — login, logout and session restoration
+- components/brand-library.tsx, filament-dialog.tsx, inventory-summary.tsx — inventory UI
+- lib/api.ts — centralized same-origin /api/v1 client
+- lib/stock.ts — unchanged original inventory rules and validation
+- backend/src/Inventory.php — transactional normalized inventory service
+- backend/migrations/ — versioned schema including Phase 4 migration 0003
+- backend/tests/ and scripts/ — unit, HTTP, concurrency and live component checks
+- legacy/ — isolated old D1/Worker/Vinext source, not executed
+- public/scale/ — unchanged firmware/downloads; hardware integration deferred
 
+D1 imports/restores and ESP8266 firmware changes are deferred. JSON export is a
+loaded-state review copy, not a full database backup. No browser-only inventory
+or fake successful saves are used. Read the Phase 4 report before deployment.

@@ -1,5 +1,8 @@
 # Phase 3 REST API
 
+Historical foundation contract. Phase 4 now implements inventory mutations,
+the /stock adapter and richer dashboards: use PHASE-4-API.md for current routes.
+
 Base URL `/api/v1`. JSON success: `{ "data": ... }`; paginated collections add
 `meta: {total, limit, offset}`. Errors: `{error, code, requestId}`. The response
 also includes X-Request-ID and Cache-Control: no-store. No CORS is enabled.
