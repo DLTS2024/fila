@@ -13,7 +13,10 @@
     "test:stock": "node scripts/check-stock.mjs",
     "test:api": "node scripts/check-api.mjs",
     "verify:static": "node scripts/verify-static.mjs",
-    "test:ui": "node scripts/check-ui.mjs"
+    "test:ui": "node scripts/check-ui.mjs",
+    "test:php:http": "node backend/tests/http.mjs",
+    "test:php:auth": "node backend/tests/auth-database.mjs",
+    "test:php": "node scripts/check-php.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

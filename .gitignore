@@ -70,3 +70,9 @@ config.local.php
 credentials*.json
 /test-results/
 
+
+# PHP private runtime and local tools
+/backend/var/
+/.tools/
+/backend/tests/test.local.php
+

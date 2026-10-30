@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
     resolve: { alias: { '@': fileURLToPath(new URL('.', import.meta.url)) } },
     server: {
       host: '127.0.0.1',
-      fs: { deny: ['.env', '.env.*', '**/.dev.vars*', '**/*secrets*.h', '**/*.pem', '**/.git/**', '**/backups/**', '**/legacy/**', '**/work/**', '**/.wrangler/**', '**/.sites-runtime/**', '**/.next/**', '**/.vinext/**'] },
+      fs: { deny: ['.env', '.env.*', '**/config.local.php', '**/.tools/**', '**/backend/**', '**/.dev.vars*', '**/*secrets*.h', '**/*.pem', '**/.git/**', '**/backups/**', '**/legacy/**', '**/work/**', '**/.wrangler/**', '**/.sites-runtime/**', '**/.next/**', '**/.vinext/**'] },
       ...(env.DLOOP_API_PROXY ? { proxy: { '/api': { target: env.DLOOP_API_PROXY, changeOrigin: false } } } : {}),
     },
     build: { outDir: 'dist', sourcemap: false },

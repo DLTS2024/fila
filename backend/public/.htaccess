@@ -1,0 +1,14 @@
+Options -Indexes -MultiViews
+RewriteEngine On
+
+# API rewrites must precede the SPA fallback. Never serve index.html for API errors.
+RewriteRule ^api/v1(?:/.*)?$ api/v1/index.php [END,QSA]
+
+# Apply after deploying the built frontend beside this file.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [END]
+
+<FilesMatch "(^\.|\.(?:ini|log|sql|bak|env|key|pem)$)">
+    Require all denied
+</FilesMatch>

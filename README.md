@@ -2,7 +2,7 @@
 
 React + TypeScript + Vite static frontend, prepared for a PHP 8.x / MySQL API
 on standard cPanel hosting at filament.dlts.in. Node.js is local build tooling only.
-No PHP backend or production database is created in Phase 1–2.
+Phase 3 adds the private PHP API foundation and MySQL/MariaDB migrations. No production database has been created. See backend/README.md and docs/PHASE-3-REPORT.md.
 
 ## Local development
 
@@ -14,7 +14,7 @@ npm.cmd run dev
 ```
 
 Open the localhost address printed by Vite. The development server binds to
-127.0.0.1. The PHP API is not implemented yet: all seven views can be browsed,
+127.0.0.1. The PHP read/auth foundation exists, but the UI adapter and auth form are pending: all seven views can be browsed,
 but inventory is not loaded and saves/export/restore are disabled. No mock data
 or localStorage inventory replaces the saved database.
 
@@ -43,9 +43,7 @@ firmware downloads are source/example files, not server executables. `vite previ
 is only a local preview; cPanel serves the files directly. No Node process,
 Vinext, Workers or D1 is required by the production frontend.
 
-No production deployment is performed. The future PHP API needs authentication,
-CSRF validation, prepared statements, input validation, transactions and protected
-credentials before production use. No Apache API rewrite is installed yet.
+No production deployment is performed. The PHP foundation includes session auth, CSRF validation, PDO prepared statements and input validation. Inventory write endpoints and UI integration remain pending. Apache rewrite rules are prepared under backend/public; nothing has been deployed.
 
 ## Project map
 
@@ -60,6 +58,10 @@ credentials before production use. No Apache API rewrite is installed yet.
 - public/scale/ — unchanged firmware sources and prototype instructions
 - docs/ROLLBACK.md — private backups, baseline tag and recovery procedure
 - docs/PHASE-1-2-REPORT.md — changes, verification and remaining limitations
+- backend/ — Phase 3 private PHP application, public entry point, SQL migrations and tests
+- docs/PHP-LOCAL-SETUP.md — Windows PHP/MySQL setup and disposable testing
+- docs/CPANEL-PHP-DEPLOYMENT.md — private paths, Apache rules and hosting preparation
+- docs/PHASE-3-REPORT.md — current verification limits and rollback
 
 The original README and setup instructions are archived under legacy/. They
 refer to V1 and must not be followed as V2 installation instructions.

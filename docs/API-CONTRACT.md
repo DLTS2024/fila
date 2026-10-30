@@ -1,5 +1,10 @@
 # Frontend API boundary (Phase 2)
 
+Phase 3 update: the PHP foundation now exposes authentication and normalized
+read routes (see PHP-API.md). The `/stock` and `/scale-reading` facades below
+remain unimplemented, so the preserved UI still stays disconnected. They must
+not be implemented by reconnecting legacy D1 or bypassing PHP authorization.
+
 All frontend HTTP calls go through `lib/api.ts` and relative `/api/v1` URLs.
 The client sends same-origin cookies, requests JSON, has a 10-second timeout,
 and rejects HTML SPA fallbacks rather than interpreting them as inventory.
