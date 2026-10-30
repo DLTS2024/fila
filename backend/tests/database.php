@@ -32,6 +32,10 @@ try {
         return proc_close($process);
     }
     if (setupAdmin() !== 0 || setupAdmin() === 0) { throw new RuntimeException('First-admin one-time guard failed.'); }
+    // Independent account for a second run through Vite, without clearing throttle evidence.
+    $pdo->prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)')->execute([
+        'phase35-proxy@example.invalid', password_hash('Fixture-only-password-123!', PASSWORD_BCRYPT, ['cost' => 12]),
+    ]);
     $pdo->exec("INSERT INTO brands (name) VALUES ('Fixture Brand')");
     $brand = (int) $pdo->lastInsertId();
     $pdo->prepare("INSERT INTO tare_profiles (brand_id, spool_type, nominal_capacity_g, empty_mass_g) VALUES (?, 'plastic', 1000, 220)")->execute([$brand]);

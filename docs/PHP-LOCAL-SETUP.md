@@ -1,5 +1,56 @@
 # Windows PHP + MySQL/MariaDB local setup
 
+## Verified XAMPP environment (Phase 3.5, 30 October 2026)
+
+This Windows machine now has XAMPP at `C:\xampp`: PHP 8.5.12 with pdo_mysql
+and MariaDB 10.11.16 on loopback port 3306. Neither executable is on PATH;
+use the explicit paths below. No software installation or PATH change was needed.
+
+The completed disposable verification uses a dedicated DB user with grants on
+one `dloop_test_...` database only. Its private configuration is already saved at
+`backend/var/phase35/config.local.php`; do not overwrite it or publish it.
+
+```powershell
+$php = 'C:\xampp\php\php.exe'
+$env:DLOOP_PHP = $php
+$env:DLOOP_CONFIG_FILE = Join-Path $PWD 'backend/var/phase35/config.local.php'
+& $php -v
+& $php -m
+& $php backend/bin/migrate.php --status
+& $php backend/tests/schema.php
+& $php -S 127.0.0.1:8000 -t backend/public backend/router.php
+```
+
+In a second terminal:
+
+```powershell
+$env:DLOOP_API_PROXY = 'http://127.0.0.1:8000'
+npm.cmd run dev -- --port 5173 --strictPort
+```
+
+The original direct authentication test uses phase3-test@example.invalid; the
+independent proxy test uses phase35-proxy@example.invalid. These are public test
+identities, not studio/production administrators. The disposable fixture builder
+now creates both accounts. To run the proxy authentication suite against a NEW
+fixture database or after the throttle window expires:
+
+```powershell
+$env:DLOOP_DISPOSABLE_TEST = 'yes'
+$env:DLOOP_TEST_URL = 'http://127.0.0.1:5173'
+$env:DLOOP_TEST_EMAIL = 'phase35-proxy@example.invalid'
+npm.cmd run test:php:auth
+```
+
+Both suites intentionally reach the account login limit. Wait at least 15 minutes
+after the recorded bucket window before re-running them, or use a NEW disposable
+database. Do not clear throttle evidence merely to make a test pass. The schema
+test is read-only and can be rerun immediately. Do not rerun database.php against
+the already initialized DB; it intentionally refuses nonempty databases.
+
+See PHASE-3-5-REPORT.md for actual results and retained evidence. This verification
+does not connect the existing React screens to normalized read endpoints or add
+an auth UI. Phase 4 has not been started.
+
 ## Tools and private configuration
 
 Install a maintained PHP 8.x version (minimum 8.2) from the official Windows PHP
@@ -99,6 +150,7 @@ php.ini, including subprocesses. Never point these tests at real inventory.
 ```powershell
 $env:DLOOP_CONFIG_FILE = 'C:\private\dloop-test\config.local.php'
 php backend/tests/database.php --initialize-disposable
+php backend/tests/schema.php
 ```
 
 This explicitly creates the 16 tables, test admin and fixtures, checks enforced
