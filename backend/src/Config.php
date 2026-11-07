@@ -58,6 +58,27 @@ final class Config
             || ($c['environment'] === 'production' && ($db['password'] === '' || !in_array($db['host'], ['localhost', '127.0.0.1', '::1'], true)))) {
             throw new \RuntimeException('Invalid database configuration.');
         }
+        if(isset($c['phone_nfc_origin'])){
+            $phone=parse_url($c['phone_nfc_origin']);
+            if(!$phone||($phone['scheme']??'')!=='https'||isset($phone['user'])||isset($phone['pass'])||isset($phone['query'])||isset($phone['fragment'])||isset($phone['path'])||!in_array($c['phone_nfc_origin'],$c['allowed_origins'],true)||($c['access_mode']??'AUTHENTICATED')!=='AUTHENTICATED')throw new \RuntimeException('Phone NFC origin requires an authenticated HTTPS deployment.');
+        }
+        LocalAccess::validate($c);
+        if(isset($c['wifi_scale_enabled'])&&!is_bool($c['wifi_scale_enabled']))throw new \RuntimeException('Invalid Wi-Fi scale configuration.');
+        if(($c['wifi_scale_enabled']??false)&&PHP_INT_SIZE<8)throw new \RuntimeException('Wi-Fi scale timestamps require 64-bit PHP.');
+        if(($c['wifi_scale_enabled']??false)&&LocalAccess::enabled($c))throw new \RuntimeException('Public device uploads require authenticated mode.');
+        // Staging opt-in must never enable a production identity, even outside CLI validation.
+        if (isset($c['staging_wifi_profile'])) {
+            $profile = $c['staging_wifi_profile'];
+            if (!in_array($profile, ['disabled', 'wifi-enabled'], true)
+                || ($c['wifi_scale_enabled'] ?? null) !== ($profile === 'wifi-enabled')
+                || $c['environment'] !== 'production' || ($c['access_mode'] ?? '') !== 'AUTHENTICATED'
+                || $db['name'] !== 'dltsin_fila_stage' || $db['user'] !== 'dltsin_fila_stage'
+                || $db['host'] !== 'localhost' || $db['port'] !== 3306
+                || $c['allowed_origins'] !== ['https://staging-fila.dlts.in']
+                || ($c['phone_nfc_origin'] ?? '') !== 'https://staging-fila.dlts.in') {
+                throw new \RuntimeException('Invalid staging deployment identity or Wi-Fi profile.');
+            }
+        }
         return $c;
     }
 

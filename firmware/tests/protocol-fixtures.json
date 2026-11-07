@@ -13,5 +13,7 @@
   {"name":"flash failed", "seq":11,"gross":null,"stable":false,"calibrated":false,"fault":"STORAGE_ERROR","kind":"fault"},
   {"name":"unsupported monitor command", "seq":12,"gross":null,"stable":false,"calibrated":true,"fault":"COMMAND_REJECTED","kind":"fault"},
   {"name":"maximum configured gross", "seq":13,"gross":5000,"stable":true,"calibrated":true,"fault":null,"kind":"reading","eligible":true},
+  {"name":"approximate unsettled", "seq":14,"gross":null,"stable":false,"calibrated":true,"fault":"NOT_READY","kind":"fault"},
+  {"name":"approximate reference needed", "seq":15,"gross":null,"stable":false,"calibrated":true,"fault":"REFERENCE_REQUIRED","kind":"fault"},
   {"name":"last sequence", "seq":4294967295,"gross":12.34,"stable":true,"calibrated":true,"fault":null,"kind":"reading","eligible":true}
 ]

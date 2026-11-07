@@ -1,3 +1,4 @@
+#error "ARCHIVED incompatible prototype. Use firmware/dloop_wifi_scale; see docs/PRODUCTION-WIFI-DEPLOYMENT.md."
 // NodeMCU 1.0 (ESP-12E), HX711 by bogde. No inventory writes.
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecureBearSSL.h>

@@ -28,6 +28,8 @@ yarn-error.log*
 
 # Local environment and keys
 .env*
+!.env.example
+!.env.*.example
 .dev.vars*
 *.pem
 
@@ -55,6 +57,7 @@ yarn-error.log*
 *.db-*
 *.sql.gz
 **/scale_secrets.h
+**/wifi_private.h
 *.bin
 *.elf
 *.map
@@ -76,3 +79,23 @@ credentials*.json
 /.tools/
 /backend/tests/test.local.php
 
+
+# Private file-backed staging secrets
+/backend/secrets/
+**/staging-secrets.json
+
+# Local captures, generated label exports, archives and compiler/cache output
+/captures/
+/output/
+__pycache__/
+*.py[cod]
+*.zip
+/usb-reference.d
+
+# Generated hardware analysis data; keep authored reports and replay fixtures
+/docs/*-RESULTS.json
+/docs/*-TEMPORAL.json
+/docs/*-analysis/
+/docs/cable-strain-aba-20261105/
+/docs/usb-aba-20261105/
+/docs/*-console.txt

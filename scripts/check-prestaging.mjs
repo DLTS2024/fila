@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
+const source=readFileSync('firmware/dloop_wifi_scale/wifi_transport.h','utf8');
+for(const metric of ['utc_s=','utc_ready=','dns=','dns_ms=','tcp443=','tcp_ms=','probe_age_ms=','tls_error=','http_status='])assert(source.includes(metric),metric);
+assert(source.includes('WiFi.hostByName(host,address,500)'));
+assert(source.includes('probe.setTimeout(500)'));
+assert(source.includes('uint32_t(now-lastProbe)>=30000'));
+assert(source.indexOf('tlsError=client.getLastSSLError()')<source.indexOf('http.end()'));
+assert(source.includes('client.setTrustAnchors(&trust)')&&source.includes('client.setX509Time(time(nullptr))')&&!source.includes('setInsecure('));
+for(const metric of ['ESP.getFreeHeap()','ESP.getHeapFragmentation()','ESP.getMaxFreeBlockSize()','ESP.getResetInfoPtr()->reason','uploadMs=millis()-uploadStarted','++uploadOk','++uploadFailed','++reconnects','now-lastDiagnostic)<5000','now-lastDiagnostic)<30000'])assert(source.includes(metric),metric);
+assert(source.includes('DLOOP_WIFI_CA_PEM_FLASH[] PROGMEM = DLOOP_TLS_CA_PEM'));
+assert(source.includes('BearSSL::X509List trust{DLOOP_WIFI_CA_PEM_FLASH}'));
+for(const metric of ['tls_heap_before=','tls_block_before=','tls_heap_after=','ca_count='])assert(source.includes(metric));
+const checkedTls=readFileSync('firmware/dloop_wifi_scale/tls_checked_client.h','utf8');
+assert(checkedTls.includes('setBufferSizes(16384,512)'));
+assert(checkedTls.includes('#if !defined(MMU_IRAM_HEAP)'));
+assert(checkedTls.includes('new CheckedScaleTlsClient(*this)'));
+assert(!checkedTls.includes('if(*fragmentStatus!=1)'));
+assert(checkedTls.indexOf('*errorCode=getLastSSLError()')<checkedTls.indexOf('if(!connected)return 0;'));
+assert(checkedTls.includes('BearSSL::WiFiClientSecure::connect(host,port)'));
+assert(checkedTls.includes('int connect(IPAddress,uint16_t) override {return 0;}'));
+assert(!checkedTls.includes('setInsecure('));
+assert(source.includes('CheckedScaleTlsClient client{tlsError,tlsMfln}'));
+assert(source.includes('if(tlsError==0)tlsError=client.getLastSSLError()'));
+assert(!source.includes('Serial.'),'Wi-Fi diagnostics must use the queued writer');
+const logStart=source.indexOf('snprintf_P(diagnosticBuffer,diagnosticCapacity,PSTR(');assert(logStart>=0);
+const log=source.slice(logStart,source.indexOf(' uint64_t sentAt'));
+for(const secret of ['DLOOP_WIFI_SSID','DLOOP_WIFI_PASSWORD','DLOOP_DEVICE_TOKEN','DLOOP_SCALE_ENDPOINT','body'])assert(!log.includes(secret));
+for(const [args,origin] of [[['--staging'],'https://fila.dlts.in'],[[],'https://staging-fila.dlts.in'],[['--unknown'],'https://fila.dlts.in']]){
+ const r=spawnSync(process.execPath,['scripts/prepare-production.mjs',...args],{env:{...process.env,DLOOP_PACKAGE_ORIGIN:origin},encoding:'utf8'});assert.notEqual(r.status,0,'Unsafe package target accepted');
+}
+assert(readFileSync('public/scale/esp8266_wifi_sync.ino','utf8').startsWith('#error'));
+console.log('PASS: diagnostic rate/metric/nonsecret source guards; legacy compile block; wrong-environment and unknown-option packaging refusal. Runtime behavior requires hardware acceptance.');

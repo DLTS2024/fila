@@ -1,0 +1,36 @@
+import {cpSync,mkdirSync,readFileSync,readdirSync,writeFileSync,statSync,rmSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+const args=process.argv.slice(2);
+if(args.some(a=>a!=='--staging'))throw Error('Unknown packaging option.');
+const staging=args.includes('--staging');
+const root=path.resolve('outputs',(staging?'staging-fila-':'production-fila-')+new Date().toISOString().replace(/[:.]/g,'-'));
+const target=process.env.DLOOP_PACKAGE_ORIGIN||(staging?'https://staging-fila.dlts.in':'https://fila.dlts.in');
+if(new URL(target).origin!==target||new URL(target).protocol!=='https:')throw Error('Canonical HTTPS package origin required.');
+if(staging&&target!=='https://staging-fila.dlts.in')throw Error('Staging package must target the approved staging origin.');
+if(!staging&&target!=='https://fila.dlts.in')throw Error('Use --staging for staging packaging.');
+for(const f of ['0000_schema_migrations.sql','0001_inventory_foundation.sql','0002_auth_and_installation.sql','0003_inventory_management.sql','0004_brand_tare_defaults.sql','0005_spool_tag_identity.sql','0006_wifi_scale.sql','0007_preprinted_qr.sql'])if(!statSync('backend/migrations/'+f).isFile())throw Error('Required migration missing.');
+mkdirSync(root,{recursive:true});
+cpSync('dist',path.join(root,'public'),{recursive:true});
+rmSync(path.join(root,'public/scale'),{recursive:true,force:true});
+cpSync('backend/public',path.join(root,'public'),{recursive:true});
+for(const dir of ['src','migrations'])cpSync('backend/'+dir,path.join(root,'private',dir),{recursive:true});
+mkdirSync(path.join(root,'private/bin'),{recursive:true});
+for(const file of ['common.php','migrate.php','create-admin.php','reset-admin-password.php','device-credential.php','production-preflight.php'])cpSync('backend/bin/'+file,path.join(root,'private/bin',file));
+cpSync(staging?'backend/config.staging.example.php':'backend/config.production.example.php',path.join(root,'private','config.local.php'));
+mkdirSync(path.join(root,'private/var/sessions'),{recursive:true});mkdirSync(path.join(root,'private/var/backups'),{recursive:true});
+let entry=readFileSync(path.join(root,'public/api/v1/index.php'),'utf8');
+entry=entry.replace("$appRoot = getenv('DLOOP_APP_DIR') ?: dirname(__DIR__, 3);","$appRoot = getenv('DLOOP_APP_DIR'); if (!$appRoot) { throw new RuntimeException('Private application path required.'); }");
+writeFileSync(path.join(root,'public/api/v1/index.php'),entry);
+const htaccess=path.join(root,'public/.htaccess');
+writeFileSync(htaccess,readFileSync(htaccess,'utf8').replace('RewriteEngine On','RewriteEngine On\nRewriteCond %{HTTPS} !=on\nRewriteRule ^ '+target+'%{REQUEST_URI} [R=308,L]'));
+for(const dir of ['dloop_usb_scale','dloop_wifi_scale']){
+ mkdirSync(path.join(root,'firmware',dir),{recursive:true});
+ for(const f of readdirSync('firmware/'+dir))if(/\.(?:ino|h|cpp)$/.test(f)&&f!=='wifi_private.h')cpSync('firmware/'+dir+'/'+f,path.join(root,'firmware',dir,f));
+}
+cpSync(staging?'docs/STAGING-PROVISIONING-PLAN.md':'docs/PRODUCTION-WIFI-DEPLOYMENT.md',path.join(root,'DEPLOYMENT.md'));
+cpSync('docs/QR-STAGING-READINESS.md',path.join(root,'QR-STAGING-READINESS.md'));
+const files=[];function walk(dir){for(const f of readdirSync(dir)){const name=path.join(dir,f);if(statSync(name).isDirectory())walk(name);else files.push(name);}}walk(root);
+for(const f of files)if(/(?:wifi_private\.h|\.env|\.dev\.vars|\.sql\.gz|\.pem|\.key)$/.test(f))throw Error('Unexpected private material in artifact.');
+writeFileSync(path.join(root,'manifest.json'),JSON.stringify({environment:staging?'staging':'production',configTemplate:staging?'backend/config.staging.example.php':'backend/config.production.example.php',target,deployed:false,productionDatabaseInspected:false,credentialsIncluded:false,productionPasswordEnvironmentPresent:!!process.env.DLOOP_DB_PASSWORD,files:files.map(f=>({path:path.relative(root,f).replaceAll('\\','/'),sha256:createHash('sha256').update(readFileSync(f)).digest('hex')}))},null,2));
+console.log('Prepared review-only artifact: '+root+'\nPublic and private trees must be deployed separately. No credentials, local database, backups or uploads included.');

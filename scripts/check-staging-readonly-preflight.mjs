@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {mkdirSync,mkdtempSync,cpSync,writeFileSync} from 'node:fs';
+import path from 'node:path';
+import {spawnSync} from 'node:child_process';
+const root=mkdtempSync(path.resolve('work/staging-preflight-test-'));
+mkdirSync(path.join(root,'bin'));mkdirSync(path.join(root,'src'));
+cpSync('backend/bin/staging-readonly-preflight.php',path.join(root,'bin/staging-readonly-preflight.php'));
+writeFileSync(path.join(root,'src/bootstrap.php'),`<?php namespace DLoop; final class Config {public static function load($root){$c=['environment'=>'production','access_mode'=>'AUTHENTICATED','allowed_origins'=>['https://staging-fila.dlts.in'],'phone_nfc_origin'=>'https://staging-fila.dlts.in','wifi_scale_enabled'=>false,'database'=>['name'=>'dltsin_fila_stage','user'=>'dltsin_fila_stage','host'=>'localhost','port'=>3306]]; if($GLOBALS['case']==='identity')$c['database']['name']='dltsin_fila';if($GLOBALS['case']==='enabled'){$c['staging_wifi_profile']='wifi-enabled';$c['wifi_scale_enabled']=true;} if($GLOBALS['case']==='origin')$c['allowed_origins']=['https://fila.dlts.in']; if($GLOBALS['case']==='accidental')$c['wifi_scale_enabled']=true;if($GLOBALS['case']==='conflict'){$c['staging_wifi_profile']='disabled';$c['wifi_scale_enabled']=true;} if($GLOBALS['case']==='legacy-production'){$c['wifi_scale_enabled']=true;$c['database']['name']='dltsin_fila';}return $c;}}`);
+writeFileSync(path.join(root,'bin/production-preflight.php'),"<?php echo 'READONLY_STUB_OK'.PHP_EOL;");
+writeFileSync(path.join(root,'bin/migrate.php'),"<?php if(($argv[1]??'')!=='--status')throw new RuntimeException(); echo 'STATUS_STUB_OK'.PHP_EOL;");
+const harness=path.join(root,'harness.php');
+writeFileSync(harness,`<?php namespace DLoop\\StagingPreflight {function extension_loaded($name){return $GLOBALS['case']!=='extension';}} namespace {$GLOBALS['case']=$argv[1];$target=__DIR__.'/bin/staging-readonly-preflight.php';$argv=[$target];require $target;}`);
+for(const [scenario,output,status] of [['conflict','FAIL: STAGING_READONLY_PREFLIGHT\n',1],['legacy-production','FAIL: STAGING_READONLY_PREFLIGHT\n',1],['origin','FAIL: STAGING_READONLY_PREFLIGHT\n',1],['accidental','READONLY_STUB_OK\nSTATUS_STUB_OK\n',0],['enabled','READONLY_STUB_OK\nSTATUS_STUB_OK\n',0],['identity','FAIL: STAGING_READONLY_PREFLIGHT\n',1],['extension','FAIL: PDO_MYSQL_REQUIRED\n',1],['success','READONLY_STUB_OK\nSTATUS_STUB_OK\n',0]]){const r=spawnSync(path.resolve('.tools/php/php.exe'),['-n',harness,scenario],{encoding:'utf8'});assert.equal(r.status,status);assert.equal(r.stdout.replaceAll("\r\n","\n"),output);assert.equal(r.stderr,'');}
+console.log('PASS: staging identity rejects production before preflight; missing PDO MySQL fails closed; success invokes read-only preflight then --status only. Stubs, no DB connections.');

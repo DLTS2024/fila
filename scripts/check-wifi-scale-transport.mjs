@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import './test-typescript-loader.mjs';
+const {SerialScaleConnection}=await import('../lib/scale/serial.ts');
+const {remainingFilament}=await import('../lib/scale/remaining-filament.ts');
+let now=10000;const c=new SerialScaleConnection(()=>now);
+const frame={v:1,deviceId:'DLOOP-SCALE-01',seq:86,grossG:null,stable:false,calibrated:false,fault:'CALIBRATION_REQUIRED',live:{raw:850*213.656,grams:null,ageMs:125,calibrated:false,strictStable:false,hold:0,pending:0,stage:'EMPTY',spike:false}};
+const data={configured:true,online:true,reading:{frame,bootId:'a'.repeat(32),receivedAtMs:9900,ageMs:100}};
+c.ingestWifi(data,20);const first=c.getState().preview;assert.equal(first.receivedAt,9880);assert.equal(first.ageMs,25);assert.equal(c.getState().reading,null);
+now=10200;data.reading.ageMs=300;frame.live.ageMs=325;c.ingestWifi(data,20);assert.equal(c.getState().preview.receivedAt,first.receivedAt);
+const p=c.getState().preview;assert.equal(remainingFilament({id:'one',capacity:1000},193,{grams:850,receivedAt:p.receivedAt,ageMs:p.ageMs},now,9900).remaining,null);
+now=10600;data.reading.ageMs=700;frame.live.ageMs=725;frame.live.raw=null;c.ingestWifi(data,20);assert.equal(c.getState().preview.raw,null);
+c.wifiFailure();assert.equal(c.getState().preview,null);assert.equal(c.getState().connection,'disconnected');
+now=11000;frame.seq++;frame.live.raw=850*213.656;frame.live.ageMs=25;data.reading.ageMs=0;c.ingestWifi(data,20);assert.notEqual(c.getState().preview.connectionId,first.connectionId);await assert.rejects(()=>c.command('ZERO EMPTY'));
+console.log('PASS: Wi-Fi repeated latest packets retain original receipt/age and cannot cross spool-selection boundary; stale/offline clear data; reconnect resets baseline; no verified reading or calibration command.');

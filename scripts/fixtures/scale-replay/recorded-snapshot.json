@@ -1,0 +1,25 @@
+{
+  "schemaVersion":1,
+  "name":"real-583623-to-585123-unknown-motion",
+  "source":"recorded",
+  "initialState":"unknown",
+  "labelEvidence":"User-provided Phase 5C raw/time snapshot. Motion/static ground truth and original hold history unavailable. IDs below are relative positions, not claimed device counter IDs.",
+  "samples":[
+    {"id":"1","ms":583623,"raw":-21842,"label":"unknown"},
+    {"id":"2","ms":583723,"raw":-21826,"label":"unknown"},
+    {"id":"3","ms":583824,"raw":-21812,"label":"unknown"},
+    {"id":"4","ms":583923,"raw":-21826,"label":"unknown"},
+    {"id":"5","ms":584023,"raw":-21957,"label":"unknown"},
+    {"id":"6","ms":584123,"raw":-21966,"label":"unknown"},
+    {"id":"7","ms":584223,"raw":-21848,"label":"unknown"},
+    {"id":"8","ms":584323,"raw":-21880,"label":"unknown"},
+    {"id":"9","ms":584423,"raw":-21835,"label":"unknown"},
+    {"id":"10","ms":584523,"raw":-21872,"label":"unknown"},
+    {"id":"11","ms":584623,"raw":-21861,"label":"unknown"},
+    {"id":"12","ms":584723,"raw":-21861,"label":"unknown"},
+    {"id":"13","ms":584823,"raw":-21866,"label":"unknown"},
+    {"id":"14","ms":584923,"raw":-21895,"label":"unknown"},
+    {"id":"15","ms":585023,"raw":-21967,"label":"unknown"},
+    {"id":"16","ms":585123,"raw":-21956,"label":"unknown"}
+  ]
+}

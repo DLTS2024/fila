@@ -1,0 +1,68 @@
+{
+  "port": "COM3",
+  "board": "esp8266:esp8266:nodemcuv2",
+  "flashHashVerified": true,
+  "frames": [
+    {
+      "v": 1,
+      "deviceId": "DLOOP-SCALE-01",
+      "seq": 86,
+      "grossG": null,
+      "stable": false,
+      "calibrated": false,
+      "fault": "CALIBRATION_REQUIRED",
+      "live": {
+        "raw": 124514.26,
+        "grams": null,
+        "ageMs": 73,
+        "calibrated": false,
+        "strictStable": false,
+        "hold": 0,
+        "pending": 0,
+        "stage": "EMPTY",
+        "spike": false
+      }
+    },
+    {
+      "v": 1,
+      "deviceId": "DLOOP-SCALE-01",
+      "seq": 87,
+      "grossG": null,
+      "stable": false,
+      "calibrated": false,
+      "fault": "CALIBRATION_REQUIRED",
+      "live": {
+        "raw": 124504.73,
+        "grams": null,
+        "ageMs": 22,
+        "calibrated": false,
+        "strictStable": false,
+        "hold": 0,
+        "pending": 0,
+        "stage": "EMPTY",
+        "spike": false
+      }
+    },
+    {
+      "v": 1,
+      "deviceId": "DLOOP-SCALE-01",
+      "seq": 88,
+      "grossG": null,
+      "stable": false,
+      "calibrated": false,
+      "fault": "CALIBRATION_REQUIRED",
+      "live": {
+        "raw": 124513.78,
+        "grams": null,
+        "ageMs": 73,
+        "calibrated": false,
+        "strictStable": false,
+        "hold": 0,
+        "pending": 1,
+        "stage": "EMPTY",
+        "spike": false
+      }
+    }
+  ],
+  "evidenceNote": "Historical COM3 post-upload evidence, not a live capture from the current browser session."
+}

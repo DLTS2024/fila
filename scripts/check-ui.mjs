@@ -34,6 +34,7 @@ registerHooks({
 const React = await import('react');
 const {render, screen, fireEvent, waitFor, cleanup} = await import('@testing-library/react');
 const {default: Studio} = await import('../app/page.tsx');
+const {default: AuthenticatedStudio} = await import('../app/authenticated-studio.tsx');
 const fixture = {
   revision: 1,
   state: {
@@ -83,7 +84,30 @@ try {
   assert(screen.getByRole('button', {name: 'Review new spool'}).disabled);
   await waitFor(() => assert.equal(document.querySelectorAll('nav button').length, 7));
   assert(calls.every(c => c.method === 'GET'));
-  console.log('PASS: all seven view headings and navigation states; populated spool/catalogue/activity rendering; disconnected notice and disabled inventory saves. Fixtures only, no D1 access.');
+  cleanup();
+  const localCalls=[];
+  const localSession={authenticated:false,user:null,csrfToken:'a'.repeat(64),accessMode:'LOCAL_SINGLE_USER'};
+  globalThis.fetch=async(url,options)=>{
+    localCalls.push({url,method:options.method});
+    if(url.endsWith('/auth/session'))return new Response(JSON.stringify({data:localSession}),{headers:{'Content-Type':'application/json'}});
+    if(url.endsWith('/auth/local-bootstrap')){
+      assert.equal(options.method,'POST');assert.equal(options.headers['X-CSRF-Token'],localSession.csrfToken);
+      return new Response(JSON.stringify({data:{...localSession,authenticated:true,user:{id:'1',email:'fixture@example.invalid',role:'admin'},csrfToken:'b'.repeat(64)}}),{headers:{'Content-Type':'application/json'}});
+    }
+    assert(url.endsWith('/stock'));assert.equal(options.method,'GET');
+    return new Response(JSON.stringify(fixture),{headers:{'Content-Type':'application/json'}});
+  };
+  render(React.createElement(AuthenticatedStudio));await screen.findByText('Studio API connected');
+  assert.equal(screen.queryByLabelText('Email'),null);assert.equal(screen.queryByLabelText('Password'),null);assert.equal(screen.queryByRole('button',{name:'Sign out'}),null);
+  assert(screen.getByText('Local company workspace'));assert.equal(document.querySelectorAll('nav button').length,7);
+  assert.equal(localCalls.filter(c=>c.method!=='GET').length,1);assert(localCalls.some(c=>c.url.endsWith('/auth/local-bootstrap')));
+  cleanup();
+  globalThis.fetch=async(url)=>new Response(JSON.stringify(url.endsWith('/auth/session')?{data:localSession}:{error:'Local session denied'}),{status:url.endsWith('/auth/session')?200:403,headers:{'Content-Type':'application/json'}});
+  render(React.createElement(AuthenticatedStudio));await screen.findByText('Local session denied');assert.equal(screen.queryByLabelText('Password'),null);assert(screen.getByRole('button',{name:'Retry local session'}));
+  cleanup();
+  globalThis.fetch=async()=>new Response(JSON.stringify({data:{...localSession,accessMode:'AUTHENTICATED'}}),{headers:{'Content-Type':'application/json'}});
+  render(React.createElement(AuthenticatedStudio));await screen.findByRole('button',{name:'Sign in'});assert(screen.getByLabelText('Email'));assert(screen.getByLabelText('Password'));
+  console.log('PASS: seven dashboard views and inventory rendering; LOCAL_SINGLE_USER CSRF bootstrap without login/logout screen, fail-closed bootstrap error, normal authenticated login preserved. No inventory writes.');
 } finally {
   cleanup(); globalThis.fetch = originalFetch; dom.window.close();
 }

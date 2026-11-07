@@ -1,0 +1,15 @@
+import {mkdirSync,copyFileSync,readFileSync,writeFileSync,readdirSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+const root=path.resolve('outputs/staging-diagnostic-'+new Date().toISOString().replace(/[:.]/g,'-'));
+mkdirSync(root);
+const name='diagnose-staging-config.php';
+copyFileSync('backend/bin/'+name,path.join(root,name));
+const hash=createHash('sha256').update(readFileSync(path.join(root,name))).digest('hex');
+writeFileSync(path.join(root,'manifest.json'),JSON.stringify({target:'staging-fila.dlts.in',deployed:false,credentialsIncluded:false,purpose:'Private read-only CLI diagnostic only; no existing files replaced',files:[{path:name,sha256:hash}]},null,2)+'\n');
+assert.deepEqual(readdirSync(root).sort(),[name,'manifest.json'].sort());
+const manifest=JSON.parse(readFileSync(path.join(root,'manifest.json'),'utf8'));
+assert.equal(createHash('sha256').update(readFileSync(path.join(root,name))).digest('hex'),manifest.files[0].sha256);
+assert(readFileSync(path.join(root,name)).equals(readFileSync('backend/bin/'+name)));
+console.log('PASS: two-file diagnostic package; checksum and source provenance verified. '+root);

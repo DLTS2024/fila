@@ -20,7 +20,8 @@ assert.match(result.setCookie,/HttpOnly/i);
 assert.match(result.setCookie,/SameSite=Strict/i);
 assert.notEqual(cookie,'dloop_session=attackerchosenid');
 const csrf=result.json.data.csrfToken;
-for(const path of ['/dashboard','/brands','/tare-profiles','/spools']){
+const deviceCannotRead=await fetch(base+'/api/v1/stock',{headers:{Authorization:'Bearer '+ 'a'.repeat(64)}});assert.equal(deviceCannotRead.status,401);
+for(const path of ['/dashboard','/brands','/tare-profiles','/spools','/spool-selection']){
   result=await call(path); assert.equal(result.response.status,401); assert.equal(result.json.code,'unauthenticated');
 }
 result=await call('/auth/login',{method:'POST',body:{email:'test@example.com',password:'test-password'}});

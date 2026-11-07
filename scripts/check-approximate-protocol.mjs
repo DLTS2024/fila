@@ -1,0 +1,14 @@
+import './test-typescript-loader.mjs';
+import assert from 'node:assert/strict';
+import {parseScaleFrame,eligibleReading,reviewToleranceG} from '../lib/scale/protocol.ts';
+const base={v:1,deviceId:'DLOOP-SCALE-01',seq:1,grossG:975,stable:true,calibrated:true,mode:'APPROXIMATE'};
+const event=parseScaleFrame(JSON.stringify(base));assert.equal(event.kind,'reading');
+assert.equal(event.frame.mode,'APPROXIMATE');assert.equal(event.frame.grossG,975);
+const reading={...event.frame,connectionId:'test',receivedAt:1000,transport:'usb'};
+assert(eligibleReading(reading,1000));assert.equal(reviewToleranceG(reading),2);
+assert.equal(reviewToleranceG({...reading,mode:undefined}),.5);
+for(const patch of [{stable:false},{calibrated:false}])assert(!eligibleReading({...reading,...patch},1000));
+assert(!eligibleReading(reading,6001));
+for(const mode of ['STRICT','approximate',null,{},true])assert.equal(parseScaleFrame(JSON.stringify({...base,mode})).kind,'invalid');
+for(const fault of ['NOT_READY','REFERENCE_REQUIRED','HX711_TIMEOUT','OUT_OF_RANGE'])assert.equal(parseScaleFrame(JSON.stringify({...base,fault,grossG:null,stable:false})).kind,'fault');
+console.log('PASS: approximate provenance, measured mass preservation, status/freshness/calibration gates, mode validation and review tolerances.');

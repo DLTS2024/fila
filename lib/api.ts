@@ -43,8 +43,8 @@ export async function request<T>(path: string, body?: unknown, idempotencyKey?: 
 }
 
 export type StockResponse = { revision: number; state: InventoryState };
-export type Session = { authenticated: boolean; user: null|{id:string;email:string;role:string}; csrfToken: string };
-export type MeasurementConfirmation = {version:number;gross:string;tare:string;confirmed:true;reading?:{v:1;deviceId:string;seq:number;grossG:number;stable:boolean;calibrated:boolean;receivedAt:string;connectionId:string;transport:'usb'|'simulator'}};
+export type Session = { authenticated: boolean; user: null|{id:string;email:string;role:string}; csrfToken: string; accessMode?:'AUTHENTICATED'|'LOCAL_SINGLE_USER'; phoneNfcOrigin?:string|null };
+export type MeasurementConfirmation = {version:number;gross:string;tare:string;confirmed:true;reading?:{v:1;deviceId:string;seq:number;grossG:number;stable:boolean;calibrated:boolean;receivedAt:string;connectionId:string;transport:'usb'|'simulator';mode?:'APPROXIMATE';approximateAcknowledged?:boolean}};
 async function sessionRequest(path: string, body?: unknown): Promise<Session> {
   const result = await request<{data:Session}>(path, body);
   if (!result.data || typeof result.data.csrfToken !== 'string' || typeof result.data.authenticated !== 'boolean') throw new ApiError('Invalid session response.',502);
@@ -52,7 +52,14 @@ async function sessionRequest(path: string, body?: unknown): Promise<Session> {
   return result.data;
 }
 export const studioApi = {
+  qrBatches:()=>request<{data:{id:string;count:number|string;createdAt:string;unused:number|string;assigned:number|string;retired:number|string}[]}>('/qr-batches'),
+  qrBatch:(id:string)=>request<{data:import('./qr-label-pdf').QrBatch}>('/qr-batches/'+encodeURIComponent(id)),
+  generateQrBatch:(count:number,requestKey:string)=>request<{data:import('./qr-label-pdf').QrBatch}>('/qr-batches',{count,requestKey,confirmed:true}),
+  resolveQrLabel:(id:string)=>request<{data:{id:string;state:'UNUSED'|'ASSIGNED';spoolId:string|null;code:string|null}}>('/qr-labels/'+encodeURIComponent(id)),
+  getSpoolSelection: () => request<{data:{selection:null|{spoolId:string;eventId:string;expiresAt:number}}}>('/spool-selection'),
+  sendSpoolSelection: (spoolId:string) => request<{data:{selection:null|{spoolId:string;eventId:string;expiresAt:number}}}>('/spool-selection',{spoolId}),
   session: () => sessionRequest('/auth/session'),
+  localBootstrap: () => sessionRequest('/auth/local-bootstrap',{}),
   login: (email:string,password:string) => sessionRequest('/auth/login',{email,password}),
   logout: () => sessionRequest('/auth/logout',{}),
   async getStock(): Promise<StockResponse> {
@@ -66,5 +73,5 @@ export const studioApi = {
   },
   updateStock: (revision: number, action: unknown, key: string = crypto.randomUUID()) => request<StockResponse>('/stock', { revision, action }, key),
   confirmMeasurement: (id:string,revision:number,measurement:MeasurementConfirmation,key:string) => request<StockResponse>(`/spools/${encodeURIComponent(id)}/measurements`,{revision,...measurement},key),
-  getScaleReading: () => request<{reading: {gross_g: number; stable: number; recorded_at: string} | null}>('/scale-reading'),
+  getScaleReading: () => request<{configured?:boolean;online?:boolean;observation?:import('./scale/manual-observation').ManualObservation;timing?:import('./scale/wifi-timing').WifiSnapshotTiming;reading:null|{frame:unknown;bootId:string;receivedAtMs:number;ageMs:number}}>('/scale-reading'),
 };

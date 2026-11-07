@@ -1,0 +1,4 @@
+export default function RecordActions({entity,id,version,active,saving,act}:{entity:string;id:string;version:number;active:boolean;saving:boolean;act:(a:any)=>Promise<boolean|undefined>}){
+ const run=(operation:string)=>{if(confirm(operation==='delete'?'Permanently delete this unused record? Any dependency will block deletion.':`${operation==='archive'?'Archive':'Restore'} this record? History and identity are preserved.`))void act({type:'record-state',entity,id,version,operation,confirmed:true})};
+ return <span className="rowActions"><button type="button" className="secondary" disabled={saving} onClick={()=>run(active?'archive':'restore')}>{active?'Archive':'Restore'}</button><button type="button" className="secondary" disabled={saving} onClick={()=>run('delete')}>Delete unused</button></span>;
+}

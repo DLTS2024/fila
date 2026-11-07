@@ -10,6 +10,15 @@ and actor history. The original seven views, branding and inventory rules remain
 
 ## Run locally
 
+For the private, no-login company workspace, use the opt-in **LOCAL_SINGLE_USER**
+mode described in [docs/LOCAL-SINGLE-USER.md](docs/LOCAL-SINGLE-USER.md). It retains
+protected sessions and CSRF, requires the private loopback launcher, and keeps
+hosted password authentication available. Activating it changes private access
+configuration and must be explicitly approved; it is not enabled automatically.
+
+The commands below describe the older disposable authenticated test environment.
+Do not use its fixture configuration for personal inventory.
+
 XAMPP PHP and MariaDB are already installed. From the project root, terminal 1:
 
 ```powershell

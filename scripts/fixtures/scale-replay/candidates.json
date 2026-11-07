@@ -1,0 +1,8 @@
+[
+  {"name":"slope-3-only","slope":3},
+  {"name":"slope-4.5-only","slope":4.5},
+  {"name":"half-40-only","half":40},
+  {"name":"slope-3-half-40","slope":3,"half":40},
+  {"name":"slope-4.5-half-40","slope":4.5,"half":40},
+  {"name":"snapshot-boundary-5.25-half-40","slope":5.25,"half":40}
+]

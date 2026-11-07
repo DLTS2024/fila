@@ -4,6 +4,7 @@ declare(strict_types=1);
 // Copy to config.local.php OUTSIDE the public document root. No real credentials here.
 return [
     'environment' => 'local', // production on cPanel
+    'access_mode' => 'AUTHENTICATED', // opt-in LOCAL_SINGLE_USER requires private local bootstrap configuration
     'allowed_origins' => ['http://127.0.0.1:5173', 'http://localhost:5173'],
     'app_key' => '', // at least 32 random bytes, e.g. bin2hex(random_bytes(32))
     'session_dir' => __DIR__ . '/var/sessions', // private, writable by PHP only

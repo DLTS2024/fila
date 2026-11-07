@@ -6,8 +6,9 @@ namespace DLoop;
 final class Api
 {
     private ?\PDO $pdo = null;
+    private int $requestStartedNs;
 
-    public function __construct(private array $config) {}
+    public function __construct(private array $config) {$this->requestStartedNs=hrtime(true);}
 
     private function db(): \PDO
     {
@@ -16,14 +17,19 @@ final class Api
 
     public function dispatch(): void
     {
+        LocalAccess::check($this->config, $_SERVER);
         $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
         $routes = [
-            '/api/v1/auth/session' => ['GET'], '/api/v1/auth/login' => ['POST'], '/api/v1/auth/logout' => ['POST'],
+            '/api/v1/auth/session' => ['GET'], '/api/v1/auth/login' => ['POST'], '/api/v1/auth/logout' => ['POST'], '/api/v1/auth/local-bootstrap' => ['POST'],
             '/api/v1/dashboard' => ['GET'], '/api/v1/brands' => ['GET','POST'], '/api/v1/tare-profiles' => ['GET','POST'], '/api/v1/spools' => ['GET','POST'],
             '/api/v1/stock' => ['GET','POST'], '/api/v1/catalogue' => ['GET','POST'], '/api/v1/activity' => ['GET'],
+            '/api/v1/spool-selection' => ['GET','POST'],
+            '/api/v1/device/scale-reading'=>['POST'],
+            '/api/v1/qr-batches'=>['GET','POST'],
             '/api/v1/printers' => ['GET'], '/api/v1/print-jobs' => ['POST'], '/api/v1/scale-reading' => ['GET'], '/api/v1/nfc-tags/link' => ['POST'],
         ];
         $resource = null; $id = null;
+        if(is_string($path)&&preg_match('~^/api/v1/(qr-batches|qr-labels)/([a-f0-9]{32})$~D',$path))$routes[$path]=['GET'];
         if (is_string($path) && preg_match('~^/api/v1/(brands|tare-profiles|spools|printer-slots|activity)/([A-Za-z0-9-]+)(/measurements|/undo)?$~D', $path, $m)) {
             $resource = $m[1]; $id = $m[2]; $suffix = $m[3] ?? '';
             $verbs = match (true) {
@@ -40,15 +46,28 @@ final class Api
             header('Allow: ' . implode(', ', $routes[$path]));
             throw new HttpError(405, 'method_not_allowed', 'Method not allowed.');
         }
+        if($path==='/api/v1/device/scale-reading'){
+            Validation::keys($_GET,[]);
+            if((int)($_SERVER['CONTENT_LENGTH']??0)>4096)throw new HttpError(413,'payload_too_large','Device payload too large.');
+            Http::json(200,(new WifiScale($this->config,$this->db()))->ingest(Http::body(['bootId','sentAtMs','frame']),$_SERVER['HTTP_AUTHORIZATION']??$_SERVER['REDIRECT_HTTP_AUTHORIZATION']??'',$_SERVER));
+        }
+        $authStartedNs=hrtime(true);
         $auth = new Auth($this->config, fn () => $this->db()); $auth->start();
         if ($path === '/api/v1/auth/session') {
             Validation::keys($_GET, []); $user = $auth->user();
-            Http::json(200, ['data' => ['authenticated' => $user !== null, 'user' => $user, 'csrfToken' => $_SESSION['csrf']]]);
+            Http::json(200, ['data' => ['authenticated' => $user !== null, 'user' => $user, 'csrfToken' => $_SESSION['csrf'], 'accessMode' => $this->config['access_mode'] ?? 'AUTHENTICATED', 'phoneNfcOrigin'=>($this->config['access_mode']??'AUTHENTICATED')==='AUTHENTICATED'?($this->config['phone_nfc_origin']??null):null]]);
         }
         if ($method !== 'GET') {
             Validation::keys($_GET, []); $auth->csrf();
+            if ($path === '/api/v1/auth/local-bootstrap') { Http::body([]); Http::json(200, ['data' => $auth->localBootstrap()]); }
             if ($path === '/api/v1/auth/login') { Http::json(200, ['data' => $auth->login(Http::body(['email', 'password']))]); }
             $user = $auth->requireAdmin();
+            if($path==='/api/v1/qr-batches')Http::json(200,['data'=>(new QrLabels($this->db(),$user['id']))->generate(Http::body(['count','requestKey','confirmed']))]);
+            if ($path === '/api/v1/spool-selection') {
+                $selectionBody=Http::body(['spoolId']);
+                if(!is_string($selectionBody['spoolId']??null))throw new HttpError(422,'validation_error','An existing spool ID is required.');
+                Http::json(200,['data'=>(new SpoolSelection($this->config,$this->db()))->exchange($user['id'],$_SERVER,$selectionBody['spoolId'])]);
+            }
             if ($path === '/api/v1/auth/logout') { Http::body([]); Http::json(200, ['data' => $auth->logout()]); }
             $body = Http::body(['revision','action','brand','profile','spool','filament','confirmed','version','versions','gross','tare','name','note','printer','lines','status','id','uid','reading']);
             if ($path !== '/api/v1/stock') {
@@ -68,7 +87,10 @@ final class Api
             }
             Http::json(200, (new Inventory($this->db(), $user['id']))->mutate($body, $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? ''));
         }
-        $auth->requireAdmin();
+        $user=$auth->requireAdmin();
+        if($path==='/api/v1/qr-batches'){Validation::keys($_GET,[]);Http::json(200,['data'=>(new QrLabels($this->db()))->batches()]);}
+        if(preg_match('~^/api/v1/(qr-batches|qr-labels)/([a-f0-9]{32})$~D',$path,$qrRoute)){Validation::keys($_GET,[]);$qr=new QrLabels($this->db());Http::json(200,['data'=>$qrRoute[1]==='qr-batches'?$qr->batch($qrRoute[2]):$qr->resolve($qrRoute[2])]);}
+        if ($path === '/api/v1/spool-selection') { Validation::keys($_GET,[]);Http::json(200,['data'=>(new SpoolSelection($this->config,$this->db()))->exchange($user['id'],$_SERVER)]); }
         if ($path === '/api/v1/stock') { Validation::keys($_GET, []); Http::json(200, (new Inventory($this->db()))->snapshot()); }
         if ($path === '/api/v1/catalogue' || $path === '/api/v1/activity') {
             $field = $path === '/api/v1/catalogue' ? 'catalogue' : 'history';
@@ -81,7 +103,15 @@ final class Api
             Validation::keys($_GET, []);
             Http::json(200, ['data'=>$this->db()->query('SELECT p.name, s.slot_number, s.spool_id FROM printers p JOIN printer_slots s ON s.printer_id = p.id ORDER BY p.name, s.slot_number')->fetchAll()]);
         }
-        if ($path === '/api/v1/scale-reading') { Validation::keys($_GET, []); Http::json(200, ['reading'=>null]); }
+        if ($path === '/api/v1/scale-reading') {
+            Validation::keys($_GET, []);
+            $timed=WifiScale::stagingTimingEnabled($this->config,$_SERVER);
+            $authMs=(int)floor((hrtime(true)-$authStartedNs)/1000000);
+            // Authentication/rotation/last_seen are complete. This read-only
+            // staging endpoint has no later session mutations to protect.
+            if($timed&&session_status()===PHP_SESSION_ACTIVE)session_write_close();
+            Http::json(200,(new WifiScale($this->config,$this->db()))->latest(null,$timed?$this->requestStartedNs:null,$authMs));
+        }
         $result = match ($path) {
             '/api/v1/dashboard' => (new Inventory($this->db()))->dashboard(),
             '/api/v1/brands' => $this->brands(), '/api/v1/tare-profiles' => $this->tareProfiles(), '/api/v1/spools' => $this->spools(),

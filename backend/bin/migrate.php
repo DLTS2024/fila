@@ -7,7 +7,16 @@ try {
     if (count($argv) > 2 || (isset($argv[1]) && !in_array($argv[1], ['--apply', '--status'], true))) {
         fwrite(STDERR, "Usage: php backend/bin/migrate.php [--status|--apply]\n"); exit(2);
     }
-    $pdo = \DLoop\Database::connect(cliConfig());
+    $configuration=cliConfig();
+    if($apply&&$configuration['environment']==='production'){
+        $manifestPath=getenv('DLOOP_BACKUP_MANIFEST');
+        $backupRoot=realpath(dirname(__DIR__).'/var/backups');$manifestReal=$manifestPath?realpath($manifestPath):false;
+        if(!$backupRoot||!$manifestReal||!str_starts_with(str_replace('\\','/',$manifestReal),str_replace('\\','/',$backupRoot).'/'))throw new RuntimeException('Verified private backup manifest required.');
+        $backup=json_decode(file_get_contents($manifestReal),true,512,JSON_THROW_ON_ERROR);
+        $file=realpath($backup['backupFile']??'');
+        if(($backup['database']??null)!==$configuration['database']['name']||($backup['restoreVerified']??false)!==true||!$file||!str_starts_with(str_replace('\\','/',$file),str_replace('\\','/',$backupRoot).'/')||filesize($file)<100||!is_string($backup['sha256']??null)||!hash_equals($backup['sha256'],hash_file('sha256',$file)))throw new RuntimeException('Backup verification required.');
+    }
+    $pdo = \DLoop\Database::connect($configuration);
     $lockName = 'dloop:migrate:' . substr(hash('sha256', cliConfig()['database']['name']), 0, 32);
     $lock = $pdo->prepare('SELECT GET_LOCK(?, 10)');
     $lock->execute([$lockName]);

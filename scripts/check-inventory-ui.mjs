@@ -80,6 +80,7 @@ try{
  fireEvent.change(screen.getByLabelText('Remaining filament mass (g)'),{target:{value:'500'}});
  fireEvent.change(screen.getByLabelText('Empty spool profile'),{target:{value:profile.id}});
  fireEvent.change(screen.getByLabelText('Physical spool tare override (g)'),{target:{value:'220'}});
+ fireEvent.click(screen.getByLabelText('I independently measured this individual spool tare'));
  assert.equal(writes.length,0);
  fireEvent.click(screen.getByRole('button',{name:'Review new spool'}));
  assert(screen.getByRole('button',{name:'Confirm & save spool'}).disabled);

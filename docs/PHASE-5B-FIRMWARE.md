@@ -1,5 +1,12 @@
 # Phase 5B: USB-only ESP8266 scale
 
+Phase 5C diagnostic instrumentation is documented in
+[PHASE-5C-DIAGNOSTICS.md](PHASE-5C-DIAGNOSTICS.md): device timing, sample IDs,
+optional chronological raw snapshots and once-per-reset events. No stability
+threshold or calibration decision was changed by that instrumentation.
+
+Current noise-handling update: see [robust zero/stability criteria and real-data analysis](ZERO-UNSTABLE-DIAGNOSTICS.md). Settling now needs four quiet windows (~6.4 s), not the former 50-count spread check.
+
 Sketch: [dloop_usb_scale.ino](../firmware/dloop_usb_scale/dloop_usb_scale.ino).
 Open this file in its own matching folder in Arduino IDE. Do not open both it
 and an old sketch in one Arduino sketch folder. Nothing was flashed in Phase 5B.
@@ -72,15 +79,16 @@ persistent Wi-Fi configuration changes, switch the radio off and keep it asleep.
 Core 3.1.2 starts Wi-Fi off by default; do not enable legacy Wi-Fi-at-boot.
 
 One available raw conversion is polled at most every 100 ms. A fixed 16-sample
-window trims the two highest/lowest values for its displayed mean. Stability
-uses the full raw window (including outliers): at most 1 g peak-to-peak, 0.25 g
-half-window trend and 0.5 g latest-to-mean deviation. Approximately 1.6 s of
-new samples is needed after reset/zero/error. Frames are emitted every 250 ms.
+window trims the two highest/lowest values for its displayed mean. Stability combines central range, median absolute deviation, bounded outliers,
+within-window trend and four consistent non-overlapping window centres. At least
+64 fresh samples (~6.4 s) are required after reset/zero/error; motion restarts
+settling. See ZERO-UNSTABLE-DIAGNOSTICS.md for exact raw and gram limits. Frames are emitted every 250 ms.
 These are initial heuristics requiring physical validation, not metrology claims.
 
 No new sample for 500 ms clears the window and blocks measurements; after 1.5 s
-the status is HX711_TIMEOUT. ADC rail values, negative mass outside the allowed
-zero band, and values above the configured ceiling are OUT_OF_RANGE. An unplugged
+the status is HX711_TIMEOUT. ADC rail values, extreme raw mass outside the bounded noise guard are OUT_OF_RANGE immediately.
+Individual samples may fluctuate around zero; the robust mean must still stay
+within the unchanged physical mass bounds or the frame is OUT_OF_RANGE. An unplugged
 amplifier normally times out, but software cannot reliably distinguish disconnected
 wiring from all plausible ADC values. Stuck plausible readings and mechanical
 faults require physical inspection; no false claim of perfect fault detection.
@@ -117,17 +125,17 @@ platform offset with the plastic spool's tare.
    board powered to warm up, with its permanent platform assembled.
 2. Send `CANCEL`. This revokes calibration in RAM and clears the USB calibration
    record, without zeroing anything. It does not touch the original firmware files.
-3. Remove **every spool, reference mass and loose object**. Wait for at least
-   16 fresh samples (~2 s). Send `ZERO EMPTY`. This is your explicit assertion
+3. Remove **every spool, reference mass and loose object**. Wait for DEBUG RAW to show
+   16/16, hold=4/4 and zeroCheck=PASS (at least ~6.4 s). Send `ZERO EMPTY`. This is your explicit assertion
    that the platform is empty; the firmware cannot identify an object as a spool.
-   Raw window spread must be <=50 ADC counts. A refusal never auto-retries zero.
+   All robust distribution, trend and temporal hold checks must pass. A refusal never auto-retries zero.
 4. Place a known reference mass (for example 500 g, within actual capacity).
    Wait for settling, then send `CAL 500`. Candidate factor is
    `(trimmed raw mean - physical platform offset) / reference grams`; either
    sign is supported. Fresh window/stability/range checks must pass. `calibrated`
    remains **false**. The old factor is never used to authorize readings.
 5. Replace it with a **different** reference (for example 1000 g if safe).
-   Wait at least 2 s and send `VERIFY 1000`. The reference must differ by at
+   Wait until hold=4/4 again and send `VERIFY 1000`. The reference must differ by at
    least max(20 g, 10% of the calibration mass). Candidate error must be within
    max(1 g, 0.2% of reference mass). Failed checks do not approve calibration.
 6. With that verification mass still stable, send `ACCEPT`. It rechecks the
@@ -188,7 +196,9 @@ Run `npm.cmd run test:firmware`, `test:scale`, `test:scale:ui`, `test:stock`,
 `test:api`, `test:ui` and `build`. The firmware fixtures use its actual C printf
 format with representative values, then the real TypeScript parser. They test
 fragmented/multiple frames, flags, fault shapes, optional UID and sequence restart.
-They do **not** execute C++ or simulate HX711 electrical/physical behavior.
+They do **not** execute C++ at runtime or simulate HX711 electrical/physical behavior.
+Arduino Verify also compiles stability_self_test.cpp: constexpr static assertions
+evaluate the exact shared C++ algorithm on observed-range and motion/drift fixtures.
 See PHASE-5B-REPORT.md for actual executed results and the changed-file list.
 
 No device was opened/flashed, no physical calibration was performed, no DB/API

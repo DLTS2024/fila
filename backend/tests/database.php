@@ -18,8 +18,8 @@ try {
     $argv = ['migrate.php', '--apply'];
     require dirname(__DIR__) . '/bin/migrate.php';
     $count = (int) $pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND engine = 'InnoDB'")->fetchColumn();
-    if ($count !== 17) { throw new RuntimeException('Expected 17 InnoDB tables.'); }
-    if ((int) $pdo->query('SELECT COUNT(*) FROM schema_migrations')->fetchColumn() !== 4) { throw new RuntimeException('Migration ledger mismatch.'); }
+    if ($count !== 23) { throw new RuntimeException('Expected 23 InnoDB tables.'); }
+    if ((int) $pdo->query('SELECT COUNT(*) FROM schema_migrations')->fetchColumn() !== count(glob(dirname(__DIR__).'/migrations/*.sql'))) { throw new RuntimeException('Migration ledger mismatch.'); }
 
     function setupAdmin(): int {
         $pipes = [];
@@ -65,5 +65,5 @@ try {
     $printer = (int) $pdo->lastInsertId();
     $pdo->prepare('INSERT INTO printer_slots (printer_id, slot_number, spool_id) VALUES (?, 1, ?)')->execute([$printer, $spool]);
     $reject('INSERT INTO printer_slots (printer_id, slot_number, spool_id) VALUES (?, 2, ?)', [$printer, $spool]);
-    echo "PASS: migration ledger, 17 InnoDB tables, one-time admin setup, $checks unique/FK/CHECK constraints. Fixtures retained in disposable DB.\n";
+    echo "PASS: migration ledger, 23 InnoDB tables, one-time admin setup, $checks unique/FK/CHECK constraints. Fixtures retained in disposable DB.\n";
 } catch (Throwable $e) { cliFailure($e); }

@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+assert.equal(process.env.DLOOP_DISPOSABLE_TEST,'yes');
+const base=process.env.DLOOP_TEST_URL;assert(base&&new URL(base).hostname==='127.0.0.1'&&new URL(base).port==='8121');
+let cookie='',csrf='';
+async function call(path,body){const r=await fetch(base+'/api/v1'+path,{method:body?'POST':'GET',headers:{...(cookie?{Cookie:cookie}:{}),...(body?{Origin:'http://127.0.0.1:5173','Content-Type':'application/json','X-CSRF-Token':csrf,'Idempotency-Key':crypto.randomUUID()}:{})},...(body?{body:JSON.stringify(body)}:{})});if(r.headers.get('set-cookie'))cookie=r.headers.get('set-cookie').split(';')[0];return {status:r.status,data:await r.json()};}
+let r=await call('/qr-batches');assert.equal(r.status,401);
+r=await call('/qr-labels/'+'a'.repeat(32));assert.equal(r.status,401);
+r=await call('/auth/session');csrf=r.data.data.csrfToken;
+r=await call('/auth/login',{email:'phase35-proxy@example.invalid',password:'Fixture-only-password-123!'});assert.equal(r.status,200);csrf=r.data.data.csrfToken;
+const before=(await call('/qr-batches')).data.data.length;
+const request={count:100,requestKey:crypto.randomUUID(),confirmed:true};r=await call('/qr-batches',request);assert.equal(r.status,200);const batch=r.data.data;assert.equal(batch.labels.length,100);assert(batch.labels.every(l=>l.state==='UNUSED'));
+r=await call('/qr-batches',request);assert.equal(r.data.data.id,batch.id);assert.equal((await call('/qr-batches')).data.data.length,before+1);
+assert.deepEqual((await call('/qr-batches/'+batch.id)).data.data.labels,batch.labels);
+const label=batch.labels[0].id;assert.equal((await call('/qr-labels/'+label)).data.data.state,'UNUSED');
+let stock=(await call('/stock')).data;const brand=stock.state.brands.find(b=>b.active);
+const spool={name:'HTTP QR fixture',brandId:brand.id,material:'PLA+',colorName:'QRHTTP',color:'#ffffff',spoolType:'Unknown',capacity:'1000',initial:'982',remaining:'982',mode:'manual',registrationKind:'partial',profileId:null,tareOverride:'193',tareOverrideVerified:false,location:'',catalogueId:null};
+const add={type:'add',confirmed:true,qrLabelId:label,spool};r=await call('/stock',{revision:stock.revision,action:add});assert.equal(r.status,200);stock=r.data;const p=stock.state.spools.find(p=>p.qrLabelId===label);assert(p&&!p.measured&&p.remaining===982);
+assert.equal((await call('/qr-labels/'+label)).data.data.spoolId,p.id);
+r=await call('/stock',{revision:stock.revision,action:add});assert.equal(r.status,409);assert.equal(r.data.code,'qr_not_unused');
+const anonymous=await fetch(base+'/api/v1/qr-labels/'+label,{headers:{Authorization:'Bearer '+'a'.repeat(64)}});assert.equal(anonymous.status,401);
+r=await call('/stock',{revision:stock.revision,action:{type:'qr-retire',id:p.id,version:p.version,confirmed:true}});assert.equal(r.status,200);assert.equal((await call('/qr-labels/'+label)).status,410);
+const previous=csrf;csrf='';r=await call('/qr-batches',{...request,requestKey:crypto.randomUUID()});assert.equal(r.status,403);csrf=previous;
+assert.equal((await call('/qr-batches/'+batch.id)).data.data.labels.map(l=>l.id).join(','),batch.labels.map(l=>l.id).join(','));
+console.log('PASS: real PHP HTTP QR auth/CSRF, 100-label idempotent generation and re-download, server UNUSED lookup, atomic spool binding, assigned resolution, duplicate refusal, device/user separation and retired response. Disposable server only.');

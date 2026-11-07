@@ -1,3 +1,7 @@
+# Archived prototypes ? do not flash
+
+The files in this directory are historical, incompatible prototypes. The ESP8266 prototype is compile-blocked. Supported NodeMCU sources are `firmware/dloop_usb_scale` (USB) and `firmware/dloop_wifi_scale` (Wi-Fi), sharing the current protocol and acquisition code. See `docs/PRODUCTION-WIFI-DEPLOYMENT.md`. New release packages exclude this directory. Hardware operations require separate approval.
+
 # D Loop 3D budget USB NFC scale — prototype
 
 Status: firmware draft; not compiled or tested on hardware. No Wi-Fi synchronization.

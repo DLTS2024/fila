@@ -103,8 +103,42 @@ database; do not reset it or rerun blind. There are no automatic down migrations
 
 First-admin setup uses a row lock and transaction on installation_state plus a
 users check. Once initialized it remains closed even if users later disappear.
-It has no web route and all bin files refuse non-CLI execution. Account recovery
-and additional-admin management are not implemented in this phase.
+It has no web route and all bin files refuse non-CLI execution. Local password
+recovery is now available through `backend/bin/reset-admin-password.ps1` and its
+CLI-only PHP helper; additional-admin management remains unavailable.
+
+### Reset an existing local administrator password
+
+Run the PowerShell helper in your own terminal so the new password stays private:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\backend\bin\reset-admin-password.ps1 -Php C:\xampp\php\php.exe
+```
+
+The helper asks for your existing private studio configuration path and existing
+administrator email. It inspects the configured local database read-only, displays
+the database and matching active administrator, and requires you to type the
+database name before asking twice for a hidden new password (12–72 UTF-8 bytes).
+Use the configuration of the server you actually sign into; do not select a
+retained disposable fixture database for a different studio. The local frontend
+started for preview testing uses the path in `backend/var/phase5a/active-config.txt`.
+The default `backend/config.local.php` may be absent and is not inferred.
+
+Passwords travel only through standard input, never command arguments/history,
+saved files or CLI output. The PHP helper uses the existing bcrypt cost 12 and
+updates only the existing active administrator's password hash and updated_at in
+a transaction, verifying the stored hash internally before commit. A missing
+account fails; no account is created and installation_state is never reopened.
+It refuses production configurations and confirms that the inspected database
+target has not changed before reset. No migration, database reset or inventory
+write is involved. Do not paste a password or password hash into chat.
+
+The current authentication implementation does not revoke existing authenticated
+sessions on a password change. Sign out existing browser sessions and sign back
+in to test the new password. This helper does not delete session files or other
+users' data. Syntax checks passed; the actual private reset is completed only when
+the operator runs the helper successfully. No password reset was executed while
+preparing these instructions.
 
 ## Start locally
 

@@ -1,0 +1,2 @@
+ALTER TABLE brands ADD default_tare_g DECIMAL(10,2) NULL, ADD default_tare_verified TINYINT UNSIGNED NOT NULL DEFAULT 0, ADD CONSTRAINT ck_brand_tare CHECK (default_tare_g IS NULL OR (default_tare_g >= 0 AND default_tare_g <= 100000)), ADD CONSTRAINT ck_brand_tare_verified CHECK (default_tare_verified IN (0,1) AND (default_tare_g IS NOT NULL OR default_tare_verified = 0));
+ALTER TABLE spools ADD tare_provisional TINYINT UNSIGNED NOT NULL DEFAULT 0, ADD estimate_note VARCHAR(500) NOT NULL DEFAULT '', ADD CONSTRAINT ck_tare_provisional CHECK (tare_provisional IN (0,1));

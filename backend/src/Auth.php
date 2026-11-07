@@ -12,6 +12,7 @@ final class Auth
 
     public function start(): void
     {
+        LocalAccess::check($this->config, $_SERVER);
         $secure = $this->config['environment'] === 'production';
         if ($secure && ($_SERVER['HTTPS'] ?? '') !== 'on' && (int) ($_SERVER['SERVER_PORT'] ?? 0) !== 443) {
             throw new HttpError(400, 'https_required', 'HTTPS is required.');
@@ -26,6 +27,9 @@ final class Auth
         if (!session_start()) {
             throw new \RuntimeException('Session start failed.');
         }
+        $expectedMode = $this->config['access_mode'] ?? 'AUTHENTICATED';
+        if (isset($_SESSION['user_id']) && (($_SESSION['access_mode'] ?? 'AUTHENTICATED') !== $expectedMode ||
+            (LocalAccess::enabled($this->config) && ($_SESSION['local_binding'] ?? '') !== $this->localBinding()))) { $this->reset(); }
         $now = time();
         if (isset($_SESSION['user_id']) && ($now - ($_SESSION['last_seen'] ?? 0) > $this->config['session_idle_seconds']
             || $now - ($_SESSION['authenticated_at'] ?? 0) > $this->config['session_absolute_seconds'])) {
@@ -56,6 +60,7 @@ final class Auth
         if (!isset($_SESSION['user_id'])) {
             return null;
         }
+        if (LocalAccess::enabled($this->config) && (string)$_SESSION['user_id'] !== $this->config['local_user_id']) { $this->reset(); return null; }
         $q = ($this->database)()->prepare('SELECT id, email, role, active FROM users WHERE id = ?');
         $q->execute([$_SESSION['user_id']]);
         $user = $q->fetch();
@@ -79,6 +84,7 @@ final class Auth
 
     public function login(array $input): array
     {
+        if (LocalAccess::enabled($this->config)) { throw new HttpError(409, 'local_bootstrap_required', 'Use the local session bootstrap.'); }
         $email = Validation::email($input['email'] ?? null);
         $password = Validation::password($input['password'] ?? null);
         $pdo = ($this->database)();
@@ -96,14 +102,38 @@ final class Auth
         }
         $this->reset();
         $_SESSION['user_id'] = (string) $user['id'];
+        $_SESSION['access_mode'] = 'AUTHENTICATED';
         $_SESSION['authenticated_at'] = $_SESSION['last_seen'] = $_SESSION['rotated_at'] = time();
-        return ['authenticated' => true, 'user' => ['id' => (string) $user['id'], 'email' => $email, 'role' => 'admin'], 'csrfToken' => $_SESSION['csrf']];
+        return ['accessMode'=>'AUTHENTICATED','phoneNfcOrigin'=>$this->config['phone_nfc_origin']??null,'authenticated' => true, 'user' => ['id' => (string) $user['id'], 'email' => $email, 'role' => 'admin'], 'csrfToken' => $_SESSION['csrf']];
     }
 
     public function logout(): array
     {
         $this->reset();
         return ['authenticated' => false, 'user' => null, 'csrfToken' => $_SESSION['csrf']];
+    }
+
+    private function localBinding(): string
+    {
+        return hash_hmac('sha256', $this->config['database']['name'] . ':' . $this->config['local_user_id'], $this->config['local_bridge_token']);
+    }
+
+    public function localBootstrap(): array
+    {
+        if (!LocalAccess::enabled($this->config)) { throw new HttpError(404, 'not_found', 'Local bootstrap is disabled.'); }
+        LocalAccess::check($this->config, $_SERVER);
+        $this->csrf();
+        $q = ($this->database)()->prepare("SELECT id, email, role, active FROM users WHERE id = ?");
+        $q->execute([$this->config['local_user_id']]);
+        $user = $q->fetch();
+        if (!$user || (int)$user['active'] !== 1 || $user['role'] !== 'admin') { throw new HttpError(403, 'local_actor_unavailable', 'Configured local operator is unavailable.'); }
+        $this->reset();
+        $_SESSION['user_id'] = (string)$user['id'];
+        $_SESSION['access_mode'] = 'LOCAL_SINGLE_USER';
+        $_SESSION['local_binding'] = $this->localBinding();
+        $_SESSION['authenticated_at'] = $_SESSION['last_seen'] = $_SESSION['rotated_at'] = time();
+        unset($user['active']); $user['id'] = (string)$user['id'];
+        return ['authenticated' => true, 'user' => $user, 'csrfToken' => $_SESSION['csrf'], 'accessMode' => 'LOCAL_SINGLE_USER'];
     }
 
     private function reset(): void

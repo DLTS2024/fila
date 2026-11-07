@@ -1,0 +1,11 @@
+{
+  "0000_schema_migrations.sql": "295e0b980ba8cd6a437f170a9f456f95d14a355f4ed6d2cec49b0e850789e3d0",
+  "0001_inventory_foundation.sql": "ed978801f69a3ebd05e28451aeb8e83ca5de908914da3d8568460fa90c370398",
+  "0002_auth_and_installation.sql": "949344c33bcd92ca05d46b2ad39d9e577c370e8afdbb170149949509fe4e2cfc",
+  "0003_inventory_management.sql": "fc3c01f9020b4dfee5f8e725d001e6b9c75bf84fbc802da9cc090768c33168dd",
+  "0004_brand_tare_defaults.sql": "20ed454df848c1c9b8ee150548eaf390233e9b698f4f5d33133055871174d6aa",
+  "0005_spool_tag_identity.sql": "ec94b82e051541fd0c72a77654f75b1e0cde607f073f3c0bf159e0bf9bab0366",
+  "0006_wifi_scale.sql": "b0a1130875d9e0fd84a7c11e89f95a694b3a1663869ad2d02c7cea9422b68f9e",
+  "0007_preprinted_qr.sql": "a40cdf7b5ef874bc144d50d28dc52fa0ba64752030995ba271f00f1fc73c22aa",
+  "0008_mobile_management.sql": "6a99ad37517ebf24518b522d4278828f6682d9523959bfa90f850a4cd73e6668"
+}

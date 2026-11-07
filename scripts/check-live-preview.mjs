@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import './test-typescript-loader.mjs';
+const {parseScaleFrame,ScaleFrameParser,eligibleReading}=await import('../lib/scale/protocol.ts');
+const {SerialScaleConnection}=await import('../lib/scale/serial.ts');
+let checks=0;const check=(v,label)=>{assert(v,label);++checks;};
+const live={raw:125000,grams:null,ageMs:20,calibrated:false,strictStable:false,hold:0,pending:5,stage:'EMPTY',spike:false};
+const frame=(seq,extra={})=>({v:1,deviceId:'DLOOP-SCALE-01',seq,grossG:null,stable:false,calibrated:false,fault:'CALIBRATION_REQUIRED',live:{...live},...extra});
+check(parseScaleFrame(JSON.stringify(frame(1))).kind==='fault','raw preview does not become inventory measurement');
+for(const bad of [{grams:100},{raw:'bad'},{ageMs:501},{pending:16},{hold:5},{stage:'ACCEPTED'},{extra:1},{calibrated:'yes'}]){
+ const v=frame(1,{live:{...live,...bad}});
+ check(parseScaleFrame(JSON.stringify(v)).kind==='invalid','malformed or unverified preview rejected');
+}
+check(parseScaleFrame(JSON.stringify(frame(1,{live:{...live,calibrated:true,grams:500}}))).kind==='invalid','preview cannot invent outer calibration approval');
+const p=new ScaleFrameParser();const wire=new TextEncoder().encode(JSON.stringify(frame(1))+'\n');
+let events=[];for(const byte of wire)events.push(...p.push(new Uint8Array([byte])));
+check(events.length===1&&events[0].live.raw===125000,'preview survives byte-by-byte framing');
+check(p.push(wire)[0].kind==='invalid','preview cannot bypass sequence ordering');
+let time=10000,controller;const writes=[];
+const port={readable:null,writable:new WritableStream({write:b=>writes.push(new TextDecoder().decode(b))}),
+ async open(){this.readable=new ReadableStream({start:c=>controller=c});},async close(){}};
+const c=new SerialScaleConnection(()=>time);await c.connect({requestPort:async()=>port});
+const send=async v=>{controller.enqueue(new TextEncoder().encode(JSON.stringify(v)+'\n'));await new Promise(r=>setTimeout(r,0));};
+await send(frame(1));check(writes.length===0,'connect and receive send no commands');
+await assert.rejects(()=>c.command('CAL 500\nACCEPT'));checks++;
+await assert.rejects(()=>c.command('APPROX CAL ACCEPT'));checks++;
+const before=c.getState().preview.connectionId;
+await c.command('ZERO EMPTY');check(writes[0]==='ZERO EMPTY\n'&&c.getState().reading===null&&c.getState().preview===null,'confirmed command invalidates review immediately');
+await send(frame(2));check(c.getState().preview.connectionId!==before,'pre-command frozen review identity revoked');
+time+=481;await assert.rejects(()=>c.command('ACCEPT'));checks++;
+await send(frame(3,{grossG:500,stable:false,calibrated:true,fault:undefined,live:{...live,grams:500,calibrated:true,stage:'DONE'}}));
+check(!eligibleReading(c.getState().reading,time),'calibrated live preview does not imply stable inventory eligibility');
+check(!('live' in c.getState().reading),'preview data excluded from API reading context');
+await c.disconnect();check(c.getState().preview===null,'disconnect clears preview');
+const sketch=fs.readFileSync('firmware/dloop_usb_scale/dloop_usb_scale.ino','utf8');
+check(sketch.includes('livePreview.observe(raw,lastSample)')&&sketch.includes('quietHold.observe(stats, sampleCount == WINDOW_SIZE)'),'display and strict detector receive separate observations');
+check(sketch.includes('previewFresh&&strictCalibrated'),'grams emitted only after strict acceptance');
+const worst=frame(4294967295,{calibrated:true,grossG:5000,fault:'CALIBRATION_UNSTABLE',live:{...live,raw:-8388599,grams:-100000,ageMs:500,calibrated:true,strictStable:true,hold:4,pending:15,stage:'STRICT_REQUIRED',spike:true}});
+check(JSON.stringify(worst).length+1<512,'extended wire frame fits fixed output queue');
+console.log(`PASS: ${checks} live preview parser, transport, freshness, command isolation, review revocation and fixed-buffer checks. No physical accuracy claimed.`);

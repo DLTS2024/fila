@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import './test-typescript-loader.mjs';
+const {remainingFilament,effectiveSpoolTare}=await import('../lib/scale/remaining-filament.ts');
+const spool={id:'one',tare:193,tareDefault:193,tareKnown:true,brandId:'1',capacity:1000},state={brands:[{id:'1',defaultTare:193}]};
+const sample={grams:850,receivedAt:1001,ageMs:0,connectionId:'one',baselineId:'one',source:'live-preview-usb'};
+assert.equal(effectiveSpoolTare(spool,state),193);
+assert.equal(effectiveSpoolTare({...spool,tareOverride:200},state),200);
+assert.equal(effectiveSpoolTare({...spool,profileId:'model',tareDefault:175},state),175);
+for(const defaultTare of [null,0,200,193])assert.equal(effectiveSpoolTare(spool,{brands:[{id:'1',defaultTare}]}),193);
+assert.equal(effectiveSpoolTare({...spool,tareDefault:null,tareKnown:false},{brands:[{id:'1',defaultTare:200}]}),null);
+assert.equal(remainingFilament(spool,193,sample,1001,1000).remaining,657);
+assert.equal(remainingFilament(spool,193,{...sample,grams:1175},1001,1000).remaining,982);
+assert.equal(remainingFilament(spool,193,{...sample,grams:193},1001,1000).remaining,0);
+for(const grams of [0,-1,NaN,Infinity,192,10001,1500])assert.equal(remainingFilament(spool,193,{...sample,grams},1001,1000).remaining,null);
+for(const [p,t,s,now,selected] of [[undefined,193,sample,1001,1000],[spool,null,sample,1001,1000],[spool,193,null,1001,1000],[spool,193,sample,1502,1000],[spool,193,sample,1001,1001],[spool,193,{...sample,ageMs:NaN},1001,1000]])assert.equal(remainingFilament(p,t,s,now,selected).remaining,null);
+console.log('PASS: 850-193=657, 1175-193=982, tare precedence, no tare/selection/data, freshness, switched-spool sample rejection, empty platform, non-finite/negative/implausible readings.');
